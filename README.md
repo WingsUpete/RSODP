@@ -11,7 +11,7 @@ This repository is created for an undergraduate final project which studies the 
 
 ## II. Problem Instance
 
-Given a request sequence $R = [r_0, r_1, \dots, r_{n - 1}]$ of $n$ requests, where one certain request $r_i = (t_{r_i}, v_{s_i}, v_{d_i}, n_i)$ stores the request time $t_{r_i}$, the source and destination coordinates $v_{s_i} = (lng_{s_i}, lat_{s_i})$, $v_{d_i} = (lng_{d_i}, lat_{d_i})$, the volume (i.e., number of passengers) of the request $n_i$, RSODP intends to predict the future requests $\hat{R}$.
+Given a request sequence <img src="https://render.githubusercontent.com/render/math?math=R = [r_0, r_1, \dots, r_{n - 1}]"> of <img src="https://render.githubusercontent.com/render/math?math=n"> requests, where one certain request <img src="https://render.githubusercontent.com/render/math?math=r_i = (t_{r_i}, v_{s_i}, v_{d_i}, n_i)"> stores the request time <img src="https://render.githubusercontent.com/render/math?math=t_{r_i}">, the source and destination coordinates <img src="https://render.githubusercontent.com/render/math?math=v_{s_i} = (lng_{s_i}, lat_{s_i})">, <img src="https://render.githubusercontent.com/render/math?math=v_{d_i} = (lng_{d_i}, lat_{d_i})">, the volume (i.e., number of passengers) of the request <img src="https://render.githubusercontent.com/render/math?math=n_i">, RSODP intends to predict the future requests <img src="https://render.githubusercontent.com/render/math?math=\hat{R}">.
 
 
 

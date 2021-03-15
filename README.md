@@ -25,9 +25,8 @@ Given a request sequence <img src="https://render.githubusercontent.com/render/m
 The data has been preprocessed to keep only the information we need. The format of data file is as follow:
 
 ```pseudocode
-% [DATA TITLE]
-% #, request time, src lng, src lat, dst lng, dst lat, volume
-0, 2021-03-15 07:15, -73.9767456054687, 40.7698135375976, -74.0042648315429, 40.7461280822753, 2
+[request time], [src lng], [src lat], [dst lng], [dst lat], [volume]
+2021-03-15 07:15, -73.9767456054687, 40.7698135375976, -74.0042648315429, 40.7461280822753, 2
 [...]
 ```
 

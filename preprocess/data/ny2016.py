@@ -6,7 +6,6 @@ import numpy as np
 
 def convertData(inFile, outFile, startDate, endDate):
     df = pd.read_csv(inFile)
-    # missingStat(df)
     df_out = df[['tpep_pickup_datetime',
                  'pickup_latitude', 'pickup_longitude',
                  'dropoff_latitude', 'dropoff_longitude',
@@ -19,14 +18,17 @@ def convertData(inFile, outFile, startDate, endDate):
         'passenger_count': 'volume'
     })
     # Select a day of data
-    df_out['request time'] = pd.to_datetime(df_out['request time'])
+    df_out['request time'] = pd.to_datetime(df_out['request time'], errors='coerce')
+    df_out.dropna(subset=['request time'], inplace=True)  # Drop rows with invalid date format
     mask = ((df_out['request time'] >= startDate) & (df_out['request time'] < endDate)).values
     df_out = df_out.iloc[mask]
     # Filter abnormal data: In New York, any coordinate as 0 is abnormal
+    df_out.dropna(subset=['src lat', 'src lng', 'dst lat', 'dst lng'], inplace=True)
     mask = (df_out['src lat'] * df_out['src lng'] * df_out['dst lat'] * df_out['dst lng'] != 0).values
     df_out = df_out.iloc[mask]
     # Sort by Date
     df_out.sort_values(by=['request time'], inplace=True)
+    missingStat(df_out)
     df_out.to_csv(outFile, index=False)
 
 
@@ -52,8 +54,8 @@ if __name__ == '__main__':
                         help='The output converted data file, default={}'.format('ny2016.csv'))
     parser.add_argument('-sd', '--startDate', type=str, default='2016-03-06',
                         help='The start date to filter (inclusive), default={}'.format('2016-03-06'))
-    parser.add_argument('-ed', '--endDate', type=str, default='2016-03-12',
-                        help='The end date to filter (exclusive), default={}'.format('2016-03-12'))
+    parser.add_argument('-ed', '--endDate', type=str, default='2016-03-13',
+                        help='The end date to filter (exclusive), default={}'.format('2016-03-13'))
     FLAGS, unparsed = parser.parse_known_args()
 
     convertData(FLAGS.input, FLAGS.output, FLAGS.startDate, FLAGS.endDate)

@@ -22,12 +22,13 @@ def convertData(inFile, outFile):
     df_out['src lng'] = df_out['src lng'].apply(lambda x: float(x.replace(',', '.')))
     df_out['dst lat'] = df_out['dst lat'].apply(lambda x: float(x.replace(',', '.')))
     df_out['dst lng'] = df_out['dst lng'].apply(lambda x: float(x.replace(',', '.')))
-    # Filter abnormal data: In New York, any coordinate as 0 is abnormal
+    # Filter abnormal data: In Peru, any coordinate as 0 is abnormal
+    df_out.dropna(subset=['src lat', 'src lng', 'dst lat', 'dst lng'], inplace=True)
     mask = (df_out['src lat'] * df_out['src lng'] * df_out['dst lat'] * df_out['dst lng'] != 0).values
     df_out = df_out.iloc[mask]
     # Sort by Date
     df_out.sort_values(by=['request time'], inplace=True)
-    # missingStat(df_out)
+    missingStat(df_out)
     df_out.to_csv(outFile, index=False)
 
 

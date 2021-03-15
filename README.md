@@ -26,7 +26,7 @@ The data has been preprocessed to keep only the information we need. The format 
 
 ```pseudocode
 [request time], [src lat], [src lng], [dst lat], [dst lng], [volume]
-2021-03-15 07:15, 40.7698135375976, -73.9767456054687, 40.7461280822753, -74.0042648315429, 2
+2021-03-15 07:15:00, 40.7698135375976, -73.9767456054687, 40.7461280822753, -74.0042648315429, 2
 [...]
 ```
 

@@ -52,5 +52,5 @@ For most papers focusing on this area, there are three classic metrics for evalu
 
 <p align="center"><img src="https://render.githubusercontent.com/render/math?math=MAE = \frac{1}{z}\sum_{i=1}^{z}|y_i - \hat{y}_i|"></p>
 
-In these formulas, <img src="https://render.githubusercontent.com/render/math?math=z">represents the number of samples. <img src="https://render.githubusercontent.com/render/math?math=y_i"> and <img src="https://render.githubusercontent.com/render/math?math=\hat{y}_i"> represent the ground truth value and the predicted value respectively.
+In these formulas, <img src="https://render.githubusercontent.com/render/math?math=z"> represents the number of samples. <img src="https://render.githubusercontent.com/render/math?math=y_i"> and <img src="https://render.githubusercontent.com/render/math?math=\hat{y}_i"> represent the ground truth value and the predicted value respectively.
 

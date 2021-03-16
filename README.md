@@ -46,11 +46,11 @@ This is the very baseline method which computes the average of the historical de
 
 For most papers focusing on this area, there are three classic metrics for evaluation generally, i.e., the Rooted Mean Square Error (RMSE), Mean Average Percentage Error (MAPE) and Mean Absolute Error (MAE). Their formulas are as follows:
 
-<img src="https://render.githubusercontent.com/render/math?math=RMSE = \sqrt{\frac{1}{z}\sum_{i=1}^{z}(y_i - \hat{y}_i)^2}">
+<img style="display: block;margin: auto;" src="https://render.githubusercontent.com/render/math?math=RMSE = \sqrt{\frac{1}{z}\sum_{i=1}^{z}(y_i - \hat{y}_i)^2}">
 
-<img src="https://render.githubusercontent.com/render/math?math=MAPE = \sqrt{\frac{1}{z}\sum_{i=1}^{z}\frac{|y_i - \hat{y}_i|}{y_i}}">
+<img style="display: block;margin: auto;" src="https://render.githubusercontent.com/render/math?math=MAPE = \sqrt{\frac{1}{z}\sum_{i=1}^{z}\frac{|y_i - \hat{y}_i|}{y_i}}">
 
-<img src="https://render.githubusercontent.com/render/math?math=MAE = \frac{1}{z}\sum_{i=1}^{z}|y_i - \hat{y}_i|">
+<img style="display: block;margin: auto;" src="https://render.githubusercontent.com/render/math?math=MAE = \frac{1}{z}\sum_{i=1}^{z}|y_i - \hat{y}_i|">
 
 In these formulas, <img src="https://render.githubusercontent.com/render/math?math=z">represents the number of samples. <img src="https://render.githubusercontent.com/render/math?math=y_i"> and <img src="https://render.githubusercontent.com/render/math?math=\hat{y}_i"> represent the ground truth value and the predicted value respectively.
 

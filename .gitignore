@@ -4,5 +4,8 @@
 # Others
 desktop.ini
 
+# Log
+log/
+
 # Data
 data/

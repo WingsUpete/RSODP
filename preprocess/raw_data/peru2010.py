@@ -24,7 +24,11 @@ def convertData(inFile, outFile):
     df_out['dst lng'] = df_out['dst lng'].apply(lambda x: float(x.replace(',', '.')))
     # Filter abnormal data: In Peru, any coordinate as 0 is abnormal
     df_out.dropna(subset=['src lat', 'src lng', 'dst lat', 'dst lng'], inplace=True)
-    mask = (df_out['src lat'] * df_out['src lng'] * df_out['dst lat'] * df_out['dst lng'] != 0).values
+    mask = ((df_out['src lat'] * df_out['src lng'] * df_out['dst lat'] * df_out['dst lng'] != 0) &
+            (df_out['src lat'] >= -90) & (df_out['src lat'] <= 90) &
+            (df_out['dst lat'] >= -90) & (df_out['dst lat'] <= 90) &
+            (df_out['src lng'] >= -180) & (df_out['src lng'] <= 180) &
+            (df_out['dst lng'] >= -180) & (df_out['dst lng'] <= 180)).values
     df_out = df_out.iloc[mask]
     # Sort by Date
     df_out.sort_values(by=['request time'], inplace=True)

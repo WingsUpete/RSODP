@@ -48,7 +48,7 @@ For most papers focusing on this area, there are three classic metrics for evalu
 
 <p align="center"><img src="https://render.githubusercontent.com/render/math?math=RMSE = \sqrt{\frac{1}{z}\sum_{i=1}^{z}(y_i - \hat{y}_i)^2}"></p>
 
-<p align="center"><img src="https://render.githubusercontent.com/render/math?math=MAPE = \frac{1}{z}\sum_{i=1}^{z}|\frac{y_i - \hat{y}_i}{y_{i} + 1}|"></p>
+<p align="center"><img src="https://render.githubusercontent.com/render/math?math=MAPE = \frac{1}{z}\sum_{i=1}^{z}|\frac{y_i - \hat{y}_i}{y_i %2B 1}|"></p>
 
 <p align="center"><img src="https://render.githubusercontent.com/render/math?math=MAE = \frac{1}{z}\sum_{i=1}^{z}|y_i - \hat{y}_i|"></p>
 

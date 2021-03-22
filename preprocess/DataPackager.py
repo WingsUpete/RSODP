@@ -9,7 +9,7 @@ import os
 import math
 import json
 import torch
-import numpy as np
+import pandas as pd
 
 
 def haversine(c0, c1):
@@ -38,6 +38,24 @@ def path2FileNameWithoutExt(path):
     :return: file name without extension
     """
     return os.path.splitext(path)[0]
+
+
+def splitData(fPath, folder):
+    df = pd.read_csv(fPath)
+    df['request time'] = pd.to_datetime(df['request time'])
+    minT, maxT = df['request time'].min(), df['request time'].max()
+    totalH = round((maxT - minT) / pd.Timedelta(hours=1))
+    lowT, upT = minT, minT + pd.Timedelta(hours=1)
+    print('Dataframe prepared. Total hours = {}.'.format(totalH))
+    for i in range(totalH):
+        curH = i + 1
+        print('\r-> Splitting hour-wise data No.{}/{}.'.format(curH, totalH), end='\r')
+        mask = ((df['request time'] >= lowT) & (df['request time'] < upT)).values
+        df_split = df.iloc[mask]
+        df_split.to_csv(os.path.join(folder, '{}.csv'.format(curH)), index=False)
+        lowT += pd.Timedelta(hours=1)
+        upT += pd.Timedelta(hours=1)
+    print('Data splitting complete.')
 
 
 def getGridInfo(minLat, maxLat, minLng, maxLng, refGridW=2.5, refGridH=2.5):
@@ -139,6 +157,9 @@ if __name__ == '__main__':
     folderName = path2FileNameWithoutExt(FLAGS.data)
     if not os.path.isdir(folderName):
         os.mkdir(folderName)
+
+    # 1
+    splitData(FLAGS.data, folderName)
 
     # 2
     gridInfo = getGridInfo(FLAGS.minLat, FLAGS.maxLat, FLAGS.minLng, FLAGS.maxLng, FLAGS.refGridH, FLAGS.refGridW)

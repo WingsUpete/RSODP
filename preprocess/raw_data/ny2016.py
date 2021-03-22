@@ -2,10 +2,10 @@
 import argparse
 import pandas as pd
 import numpy as np
-MIN_LAT = 40.4944
-MAX_LAT = 40.9196
-MIN_LNG = -74.2655
-MAX_LNG = -73.6957
+MIN_LAT = 40.4944   # Exclusive
+MAX_LAT = 40.9196   # Inclusive
+MIN_LNG = -74.2655  # Inclusive
+MAX_LNG = -73.6957  # Exclusive
 
 
 def convertData(inFile, outFile, startDate, endDate):
@@ -29,10 +29,10 @@ def convertData(inFile, outFile, startDate, endDate):
     # Filter abnormal data: In New York, any coordinate as 0 is abnormal
     df_out.dropna(subset=['src lat', 'src lng', 'dst lat', 'dst lng'], inplace=True)
     mask = ((df_out['src lat'] * df_out['src lng'] * df_out['dst lat'] * df_out['dst lng'] != 0) &
-            (df_out['src lat'] >= MIN_LAT) & (df_out['src lat'] <= MAX_LAT) &
-            (df_out['dst lat'] >= MIN_LAT) & (df_out['dst lat'] <= MAX_LAT) &
-            (df_out['src lng'] >= MIN_LNG) & (df_out['src lng'] <= MAX_LNG) &
-            (df_out['dst lng'] >= MIN_LNG) & (df_out['dst lng'] <= MAX_LNG)).values
+            (df_out['src lat'] > MIN_LAT) & (df_out['src lat'] <= MAX_LAT) &
+            (df_out['dst lat'] > MIN_LAT) & (df_out['dst lat'] <= MAX_LAT) &
+            (df_out['src lng'] >= MIN_LNG) & (df_out['src lng'] < MAX_LNG) &
+            (df_out['dst lng'] >= MIN_LNG) & (df_out['dst lng'] < MAX_LNG)).values
     df_out = df_out.iloc[mask]
     # Sort by Date
     df_out.sort_values(by=['request time'], inplace=True)

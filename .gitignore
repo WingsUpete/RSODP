@@ -11,4 +11,4 @@ log/
 data/
 **/*.csv
 **/grid_info.json
-**/adjacency_matrix.pt
+**/RTc.npy

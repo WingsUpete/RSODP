@@ -1,15 +1,16 @@
 """
 Package the data into a specified folder, which will contain:
 1. Passenger Request Data separated in hours (1.csv, 2.csv, 3.csv, ...)
-2. Grid Info grid_info.json (minLat, maxLat, minLng, maxLng, girdH, gridW, latLen, latGridNum, gridLat, ..., gridNum)
-3. Adjacency Matrix (in form of tensor) for DDW Graph with grids as nodes adjacency_matrix.pt
+2. grid_info.json (minLat, maxLat, minLng, maxLng, girdH, gridW, latLen, latGridNum, gridLat, ..., gridNum)
+3. Rc.npy which stores the geographical adjacency matrix R and the geographical pre-weight c
 """
 import argparse
 import os
 import math
 import json
-import torch
+import numpy as np
 import pandas as pd
+EPSILON = 1e-12
 
 
 def haversine(c0, c1):
@@ -111,18 +112,29 @@ def makeGridNodes(grid_info):
     return grid_nodes
 
 
-def getAdjacencyMatrix(grid_nodes):
-    adjacency_matrix = torch.zeros((len(grid_nodes), len(grid_nodes)))
+def getRTc(grid_nodes, L):
+    adjacency_matrix = np.zeros((len(grid_nodes), len(grid_nodes)))
+    geographical_neighbors = [[] for i in range(len(grid_nodes))]
     for i in range(len(grid_nodes)):
+        totalDist = 0
         for j in range(len(grid_nodes)):
             adjacency_matrix[i][j] = haversine(grid_nodes[i], grid_nodes[j])
-    print('Adjacency Matrix generated.')
-    return adjacency_matrix
+            if i != j and adjacency_matrix[i][j] <= L:
+                geographical_neighbors[i].append([j, 1 / (adjacency_matrix[i][j] + EPSILON)])
+                totalDist += 1 / (adjacency_matrix[i][j] + EPSILON)
+        for j_pair_ind in range(len(geographical_neighbors[i])):
+            geographical_neighbors[i][j_pair_ind][1] /= totalDist
+    RTc = {
+        'R': adjacency_matrix,
+        'Tc': geographical_neighbors
+    }
+    print('Geographical info generated.')
+    return RTc
 
 
-def saveAdjacencyMatrix(adjacency_matrix, fPath):
-    torch.save(adjacency_matrix, fPath)
-    print('Adjacency matrix saved to {}'.format(fPath))
+def saveRTc(RTc, fPath):
+    np.save(fPath, RTc)
+    print('Geographical info saved to {}'.format(fPath))
 
 
 if __name__ == '__main__':
@@ -159,7 +171,7 @@ if __name__ == '__main__':
         os.mkdir(folderName)
 
     # 1
-    splitData(FLAGS.data, folderName)
+    # splitData(FLAGS.data, folderName)
 
     # 2
     gridInfo = getGridInfo(FLAGS.minLat, FLAGS.maxLat, FLAGS.minLng, FLAGS.maxLng, FLAGS.refGridH, FLAGS.refGridW)
@@ -168,6 +180,6 @@ if __name__ == '__main__':
 
     # 3
     gridNodes = makeGridNodes(gridInfo)
-    adjacencyMatrix = getAdjacencyMatrix(gridNodes)
-    saveAdjacencyMatrix(adjacencyMatrix, os.path.join(folderName, 'adjacency_matrix.pt'))
-    # print(torch.load(os.path.join(folderName, 'adjacency_matrix.pt')))  # Load Example
+    rc = getRTc(gridNodes, max(gridInfo['gridH'], gridInfo['gridW']) * 1.05)
+    saveRTc(rc, os.path.join(folderName, 'RTc.npy'))
+    # print(np.load(os.path.join(folderName, 'RTc.npy'), allow_pickle=True).item())  # Load Example

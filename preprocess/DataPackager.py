@@ -1,8 +1,8 @@
 """
 Package the data into a specified folder, which will contain:
-1. Passenger Request Data separated in hours (1.csv, 2.csv, 3.csv, ...)
-2. grid_info.json (minLat, maxLat, minLng, maxLng, girdH, gridW, latLen, latGridNum, gridLat, ..., gridNum)
-3. Rc.npy which stores the geographical adjacency matrix R and the geographical pre-weight c
+1. grid_info.json (minLat, maxLat, minLng, maxLng, girdH, gridW, latLen, latGridNum, gridLat, ..., gridNum)
+2. RTc.npy which stores the geographical adjacency matrix R and the geographical pre-weight c
+3. Passenger Request Data separated in hours ((1/request.csv, 1/GVPaPb.npy), ...)
 """
 import argparse
 import os
@@ -39,24 +39,6 @@ def path2FileNameWithoutExt(path):
     :return: file name without extension
     """
     return os.path.splitext(path)[0]
-
-
-def splitData(fPath, folder):
-    df = pd.read_csv(fPath)
-    df['request time'] = pd.to_datetime(df['request time'])
-    minT, maxT = df['request time'].min(), df['request time'].max()
-    totalH = round((maxT - minT) / pd.Timedelta(hours=1))
-    lowT, upT = minT, minT + pd.Timedelta(hours=1)
-    print('Dataframe prepared. Total hours = {}.'.format(totalH))
-    for i in range(totalH):
-        curH = i + 1
-        print('\r-> Splitting hour-wise data No.{}/{}.'.format(curH, totalH), end='\r')
-        mask = ((df['request time'] >= lowT) & (df['request time'] < upT)).values
-        df_split = df.iloc[mask]
-        df_split.to_csv(os.path.join(folder, '{}.csv'.format(curH)), index=False)
-        lowT += pd.Timedelta(hours=1)
-        upT += pd.Timedelta(hours=1)
-    print('Data splitting complete.')
 
 
 def getGridInfo(minLat, maxLat, minLng, maxLng, refGridW=2.5, refGridH=2.5):
@@ -99,6 +81,11 @@ def saveGridInfo(grid_info, fPath):
 
 
 def makeGridNodes(grid_info):
+    """
+    Generate a grid node coordinate list where each grid represents a node
+    :param grid_info: Grid Map Information
+    :return: A Grid Coordinate List st. in each position (Grid ID) a (latitude, longitude) pair is stored
+    """
     leftLng = grid_info['minLng'] + grid_info['gridLng'] / 2
     midLat = grid_info['maxLat'] - grid_info['gridLat'] / 2
     grid_nodes = []
@@ -113,6 +100,12 @@ def makeGridNodes(grid_info):
 
 
 def getRTc(grid_nodes, L):
+    """
+    Get RTc data object with the given information
+    :param grid_nodes: Grid Coordinate List storing the coordinates of each grid/node
+    :param L: Threshold distance for geographical neighborhood decision making
+    :return: RTc object storing the geographical adjacency matrix R, geographical neighbor set T and geographical pre-weights c
+    """
     adjacency_matrix = np.zeros((len(grid_nodes), len(grid_nodes)))
     geographical_neighbors = [[] for i in range(len(grid_nodes))]
     for i in range(len(grid_nodes)):
@@ -122,8 +115,9 @@ def getRTc(grid_nodes, L):
             if i != j and adjacency_matrix[i][j] <= L:
                 geographical_neighbors[i].append([j, 1 / (adjacency_matrix[i][j] + EPSILON)])
                 totalDist += 1 / (adjacency_matrix[i][j] + EPSILON)
-        for j_pair_ind in range(len(geographical_neighbors[i])):
-            geographical_neighbors[i][j_pair_ind][1] /= totalDist
+        if len(geographical_neighbors[i]) > 0:
+            for j_pair_ind in range(len(geographical_neighbors[i])):
+                geographical_neighbors[i][j_pair_ind][1] /= totalDist
     RTc = {
         'R': adjacency_matrix,
         'Tc': geographical_neighbors
@@ -137,10 +131,123 @@ def saveRTc(RTc, fPath):
     print('Geographical info saved to {}'.format(fPath))
 
 
+def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1):
+    """
+    Split data in hours (request.csv, GVPaPb.npy) of each DDW Snapshot Graph
+    :param fPath: The path of request data file
+    :param folder: The path of the working directory/folder
+    :param grid_nodes: Grid Coordinate List storing the coordinates of each grid/node
+    :param grid_info: Grid Map Information
+    :param export_requests: whether the split requests should be exported if space is enough
+    :return: nothing
+    """
+    df = pd.read_csv(fPath)
+    df['request time'] = pd.to_datetime(df['request time'])
+    minT, maxT = df['request time'].min(), df['request time'].max()
+    totalH = round((maxT - minT) / pd.Timedelta(hours=1))
+    lowT, upT = minT, minT + pd.Timedelta(hours=1)
+    print('Dataframe prepared. Total hours = {}.'.format(totalH))
+
+    for i in range(totalH):
+        curH = i + 1
+        print('\r-> Splitting hour-wise data No.{}/{}.'.format(curH, totalH), end='\r')
+
+        # Folder for this split of data
+        curDir = os.path.join(folder, str(curH))
+        if not os.path.isdir(curDir):
+            os.mkdir(curDir)
+
+        # Filtered data frame
+        mask = ((df['request time'] >= lowT) & (df['request time'] < upT)).values
+        df_split = df.iloc[mask]
+        dayOfWeek = lowT.weekday()  # Mon: 0, ..., Sun: 6
+
+        GVPaPb = {}
+
+        # Save request.csv
+        if export_requests:
+            df_split.to_csv(os.path.join(curDir, 'request.csv'), index=False)
+
+        # Get request matrix G
+        request_matrix = np.zeros((len(grid_nodes), len(grid_nodes)))
+        for split_i in range(len(df_split)):
+            curData = df_split.iloc[split_i]
+            srcRow, srcCol, srcID = inWhichGrid((curData['src lat'], curData['src lng']), grid_info)
+            dstRow, dstCol, dstID = inWhichGrid((curData['dst lat'], curData['dst lng']), grid_info)
+            request_matrix[srcID][dstID] += curData['volume']
+        GVPaPb['G'] = request_matrix
+
+        # Get Feature Matrix V
+        feature_vectors = []
+        inDs = np.sum(request_matrix, axis=0)   # Col-wise: Total number of nodes pointing to current node = In Degree
+        outDs = np.sum(request_matrix, axis=1)   # Row-wise: Total number of nodes current node points to = Out Degree
+        for vi in range(len(grid_nodes)):
+            viRow, viCol = ID2Coord(vi, grid_info)
+            feature_vector = [viRow, viCol, outDs[vi], inDs[vi], vi, curH, dayOfWeek]
+            feature_vectors.append(feature_vector)
+        feature_matrix = np.array(feature_vectors)
+        GVPaPb['V'] = feature_matrix
+
+        # Get Psi (Forward Neighborhood) and Phi (Backward Neighborhood)
+        forward_neighbors = [[] for idx in range(len(grid_nodes))]  # Psi & a
+        backward_neighbors = [[] for idx in range(len(grid_nodes))] # Phi & b
+        for rmi in range(len(grid_nodes)):
+            for rmj in range(len(grid_nodes)):
+                if request_matrix[rmi][rmj] > 0:    # In this case, rmi == rmj is valid
+                    # rmi -> rmj, rmj is rmi's forward neighbor, rmi is rmj's backward neighbor
+                    forward_neighbors[rmi].append([rmj, request_matrix[rmi][rmj] + EPSILON])
+                    backward_neighbors[rmj].append([rmi, request_matrix[rmi][rmj] + EPSILON])
+        for ni in range(len(grid_nodes)):
+            if len(forward_neighbors[ni]) > 0:
+                sumFwi = np.sum(np.array(forward_neighbors[ni])[:, 1])
+                for j_pair_ind in range(len(forward_neighbors[ni])):
+                    forward_neighbors[ni][j_pair_ind][1] /= sumFwi
+            if len(backward_neighbors[ni]) > 0:
+                sumBwi = np.sum(np.array(backward_neighbors[ni])[:, 1])
+                for j_pair_ind in range(len(backward_neighbors[ni])):
+                    backward_neighbors[ni][j_pair_ind][1] /= sumBwi
+        GVPaPb['Pa'] = forward_neighbors
+        GVPaPb['Pb'] = backward_neighbors
+
+        # Save GVPaPb as GVPaPb.npy
+        np.save(os.path.join(curDir, 'GVPaPb.npy'), GVPaPb)
+
+        lowT += pd.Timedelta(hours=1)
+        upT += pd.Timedelta(hours=1)
+
+    print('Data splitting complete.')
+
+
+def inWhichGrid(coord, grid_info):
+    """
+    Specify which grid it is in for a given coordinate
+    :param coord: (latitude, longitude)
+    :param grid_info: grid_info dictionary
+    :return: row, column, grid ID
+    """
+    lat, lng = coord
+    row = math.floor((grid_info['maxLat'] - lat) / grid_info['gridLat'])
+    col = math.floor((lng - grid_info['minLng']) / grid_info['gridLng'])
+    gridID = row * grid_info['lngGridNum'] + col
+    return row, col, gridID
+
+
+def ID2Coord(gridID, grid_info):
+    """
+    Given a grid ID, decide the coordinate of that grid
+    :param gridID: Given Grid ID
+    :param grid_info: Grid map information
+    :return: Grid Map Coordinates of that grid in format of (row, col)
+    """
+    row = math.floor(gridID / grid_info['lngGridNum'])
+    col = gridID - row * grid_info['lngGridNum']
+    return row, col
+
+
 if __name__ == '__main__':
     """
     Usage Example:
-        python DataPackager.py -d ny2016_0101to0331.csv --minLat 40.4944 --maxLat 40.9196 --minLng -74.2655 --maxLng -73.6957 --refGridH 2.5 --refGridW 2.5
+        python DataPackager.py -d ny2016_0101to0331.csv --minLat 40.4944 --maxLat 40.9196 --minLng -74.2655 --maxLng -73.6957 --refGridH 2.5 --refGridW 2.5 -er 1
     """
     # Command Line Arguments
     parser = argparse.ArgumentParser()
@@ -160,6 +267,8 @@ if __name__ == '__main__':
     parser.add_argument('--refGridW', type=float, default=2.5,
                         help='The reference height for the grids, default={}, final grid width might be different'.format(
                             2.5))
+    parser.add_argument('-er', '--exportRequests', type=int, default=1,
+                        help='Whether the split requests should be exported, default={}'.format(1))
     FLAGS, unparsed = parser.parse_known_args()
 
     if not os.path.isfile(FLAGS.data):
@@ -171,15 +280,15 @@ if __name__ == '__main__':
         os.mkdir(folderName)
 
     # 1
-    # splitData(FLAGS.data, folderName)
-
-    # 2
     gridInfo = getGridInfo(FLAGS.minLat, FLAGS.maxLat, FLAGS.minLng, FLAGS.maxLng, FLAGS.refGridH, FLAGS.refGridW)
     saveGridInfo(gridInfo, os.path.join(folderName, 'grid_info.json'))
     # print(json.load(open(os.path.join(folderName, 'grid_info.json'))))    # Load Example
 
-    # 3
+    # 2
     gridNodes = makeGridNodes(gridInfo)
-    rc = getRTc(gridNodes, max(gridInfo['gridH'], gridInfo['gridW']) * 1.05)
-    saveRTc(rc, os.path.join(folderName, 'RTc.npy'))
+    rtc = getRTc(gridNodes, max(gridInfo['gridH'], gridInfo['gridW']) * 1.05)
+    saveRTc(rtc, os.path.join(folderName, 'RTc.npy'))
     # print(np.load(os.path.join(folderName, 'RTc.npy'), allow_pickle=True).item())  # Load Example
+
+    # 3
+    splitData(FLAGS.data, folderName, gridNodes, gridInfo, FLAGS.exportRequests == 1)

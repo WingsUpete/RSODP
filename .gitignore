@@ -12,3 +12,4 @@ data/
 **/*.csv
 **/grid_info.json
 **/RTc.npy
+**/GVPaPb.npy

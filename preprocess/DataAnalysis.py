@@ -10,14 +10,19 @@ def statistics(file):
     df = pd.read_csv(file)
     df['request time'] = pd.to_datetime(df['request time'])
 
+    nReq = len(df)
+    print('total Requests: {}'.format(nReq))
+
     minT, maxT = df['request time'].min(), df['request time'].max()
     tSpan = (maxT - minT).days
-    print('time span: [{}, {}] => {} days'.format(minT, maxT, tSpan))
+    print('time span: [{}, {}] => {} days = {} hours'.format(minT, maxT, tSpan, tSpan * 24))
+    
+    print('Average requests per hour = {}'.format(nReq / tSpan / 24))
 
     minLat, maxLat = df[['src lat', 'dst lat']].min().min(), df[['src lat', 'dst lat']].max().max()
     minLng, maxLng = df[['src lng', 'dst lng']].min().min(), df[['src lng', 'dst lng']].max().max()
-    print('latitude ∈ [{}, {}]'.format(minLat, maxLat))
-    print('longitude ∈ [{}, {}]'.format(minLng, maxLng))
+    print('Latitude ∈ [{}, {}]'.format(minLat, maxLat))
+    print('Longitude ∈ [{}, {}]'.format(minLng, maxLng))
 
 
 if __name__ == '__main__':

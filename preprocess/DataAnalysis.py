@@ -11,11 +11,11 @@ def statistics(file):
     df['request time'] = pd.to_datetime(df['request time'])
 
     nReq = df['volume'].sum()
-    print('total Requests: {}'.format(nReq))
+    print('Total Requests: {}'.format(nReq))
 
     minT, maxT = df['request time'].min(), df['request time'].max()
     tSpan = (maxT - minT) / pd.Timedelta(hours=1)
-    print('time span: [{}, {}] => {} hours'.format(minT, maxT, tSpan))
+    print('Time span: [{}, {}] => {} hours'.format(minT, maxT, tSpan))
 
     print('Average requests per hour = {}'.format(nReq / tSpan))
 

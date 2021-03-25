@@ -15,9 +15,9 @@ def statistics(file):
 
     minT, maxT = df['request time'].min(), df['request time'].max()
     tSpan = (maxT - minT) / pd.Timedelta(hours=1)
-    print('time span: [{}, {}] => {} days = {} hours'.format(minT, maxT, tSpan, tSpan * 24))
+    print('time span: [{}, {}] => {} hours'.format(minT, maxT, tSpan))
 
-    print('Average requests per hour = {}'.format(nReq / tSpan / 24))
+    print('Average requests per hour = {}'.format(nReq / tSpan))
 
     minLat, maxLat = df[['src lat', 'dst lat']].min().min(), df[['src lat', 'dst lat']].max().max()
     minLng, maxLng = df[['src lng', 'dst lng']].min().min(), df[['src lng', 'dst lng']].max().max()

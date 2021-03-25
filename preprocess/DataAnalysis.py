@@ -10,13 +10,13 @@ def statistics(file):
     df = pd.read_csv(file)
     df['request time'] = pd.to_datetime(df['request time'])
 
-    nReq = len(df)
+    nReq = df['volume'].sum()
     print('total Requests: {}'.format(nReq))
 
     minT, maxT = df['request time'].min(), df['request time'].max()
-    tSpan = (maxT - minT).days
+    tSpan = (maxT - minT) / pd.Timedelta(hours=1)
     print('time span: [{}, {}] => {} days = {} hours'.format(minT, maxT, tSpan, tSpan * 24))
-    
+
     print('Average requests per hour = {}'.format(nReq / tSpan / 24))
 
     minLat, maxLat = df[['src lat', 'dst lat']].min().min(), df[['src lat', 'dst lat']].max().max()

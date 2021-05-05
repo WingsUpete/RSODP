@@ -1,8 +1,8 @@
 """
 Package the data into a specified folder, which will contain:
 1. grid_info.json (minLat, maxLat, minLng, maxLng, girdH, gridW, latLen, latGridNum, gridLat, ..., gridNum)
-2. RTc.npy which stores the geographical adjacency matrix R and the geographical pre-weight c
-3. Passenger Request Data separated in hours ((1/request.csv, 1/GVPaPb.npy), ...)
+2. GeoGraph.dgl which stores the geographical graph GeoGraph
+3. Passenger Request Data separated in hours ((1/request.csv, 1/GV.npy, 1/FBGraphs.dgl), ...)
 """
 import argparse
 import os
@@ -10,6 +10,9 @@ import math
 import json
 import numpy as np
 import pandas as pd
+import torch
+import dgl
+
 EPSILON = 1e-12
 
 
@@ -99,41 +102,55 @@ def makeGridNodes(grid_info):
     return grid_nodes
 
 
-def getRTc(grid_nodes, L):
+def pushGraphEdge(gSrc: list, gDst: list, wList, src, dst, weight):
+    gSrc.append(src)
+    gDst.append(dst)
+    if wList is not None and weight is not None:
+        wList.append(weight)
+        return gSrc, gDst, wList
+    else:
+        return gSrc, gDst
+
+
+def getGeoGraph(grid_nodes, L):
     """
     Get RTc data object with the given information
     :param grid_nodes: Grid Coordinate List storing the coordinates of each grid/node
     :param L: Threshold distance for geographical neighborhood decision making
-    :return: RTc object storing the geographical adjacency matrix R, geographical neighbor set T and geographical pre-weights c
+    :return: Geographical Neighborhood DGL Graph
     """
     adjacency_matrix = np.zeros((len(grid_nodes), len(grid_nodes)))
-    geographical_neighbors = [[] for i in range(len(grid_nodes))]
+    RSrcList, RDstList = [], []
+    TcMat = np.zeros((len(grid_nodes), len(grid_nodes)))
     for i in range(len(grid_nodes)):
-        totalDist = 0
         for j in range(len(grid_nodes)):
             adjacency_matrix[i][j] = haversine(grid_nodes[i], grid_nodes[j])
             if i != j and adjacency_matrix[i][j] <= L:
-                geographical_neighbors[i].append([j, 1 / (adjacency_matrix[i][j] + EPSILON)])
-                totalDist += 1 / (adjacency_matrix[i][j] + EPSILON)
-        if len(geographical_neighbors[i]) > 0:
-            for j_pair_ind in range(len(geographical_neighbors[i])):
-                geographical_neighbors[i][j_pair_ind][1] /= totalDist
-    RTc = {
-        'R': adjacency_matrix,
-        'Tc': geographical_neighbors
-    }
+                # if i->j is small enough, j is i's geographical neighbor, j should propagate its features to i, so j->i
+                RSrcList, RDstList = pushGraphEdge(RSrcList, RDstList, None, j, i, None)
+                TcMat[j][i] = 1 / (adjacency_matrix[i][j] + EPSILON)
+    TcSum = np.sum(TcMat, axis=0)
+    for ni in range(len(grid_nodes)):
+        if TcSum[ni] == 0:
+            continue
+        for nj in range(len(grid_nodes)):
+            TcMat[nj][ni] /= TcSum[ni]
+
+    GeoGraph = dgl.graph((RSrcList, RDstList), num_nodes=len(grid_nodes))
+    GeoGraph.ndata['pre_w'] = torch.from_numpy(TcMat)
+
     print('Geographical info generated.')
-    return RTc
+    return GeoGraph
 
 
-def saveRTc(RTc, fPath):
-    np.save(fPath, RTc)
+def saveGeoGraph(geoG, fPath):
+    dgl.save_graphs(fPath, geoG)
     print('Geographical info saved to {}'.format(fPath))
 
 
 def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1):
     """
-    Split data in hours (request.csv, GVPaPb.npy) of each DDW Snapshot Graph
+    Split data in hours (request.csv, GV.npy) of each DDW Snapshot Graph
     :param fPath: The path of request data file
     :param folder: The path of the working directory/folder
     :param grid_nodes: Grid Coordinate List storing the coordinates of each grid/node
@@ -162,7 +179,7 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1):
         df_split = df.iloc[mask]
         dayOfWeek = lowT.weekday()  # Mon: 0, ..., Sun: 6
 
-        GVPaPb = {}
+        GV = {}
 
         # Save request.csv
         if export_requests:
@@ -175,42 +192,57 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1):
             srcRow, srcCol, srcID = inWhichGrid((curData['src lat'], curData['src lng']), grid_info)
             dstRow, dstCol, dstID = inWhichGrid((curData['dst lat'], curData['dst lng']), grid_info)
             request_matrix[srcID][dstID] += curData['volume']
-        GVPaPb['G'] = request_matrix
+        GV['G'] = request_matrix
 
         # Get Feature Matrix V
         feature_vectors = []
-        inDs = np.sum(request_matrix, axis=0)   # Col-wise: Total number of nodes pointing to current node = In Degree
-        outDs = np.sum(request_matrix, axis=1)   # Row-wise: Total number of nodes current node points to = Out Degree
+        inDs = np.sum(request_matrix, axis=0)  # Col-wise: Total number of nodes pointing to current node = In Degree
+        outDs = np.sum(request_matrix, axis=1)  # Row-wise: Total number of nodes current node points to = Out Degree
         for vi in range(len(grid_nodes)):
             viRow, viCol = ID2Coord(vi, grid_info)
             feature_vector = [viRow, viCol, outDs[vi], inDs[vi], vi, curH, dayOfWeek]
             feature_vectors.append(feature_vector)
         feature_matrix = np.array(feature_vectors)
-        GVPaPb['V'] = feature_matrix
+        GV['V'] = feature_matrix
+
+        # Save GV as GV.npy
+        np.save(os.path.join(curDir, 'GV.npy'), GV)
 
         # Get Psi (Forward Neighborhood) and Phi (Backward Neighborhood)
-        forward_neighbors = [[] for idx in range(len(grid_nodes))]  # Psi & a
-        backward_neighbors = [[] for idx in range(len(grid_nodes))] # Phi & b
+        PaSrcList, PaDstList = [], []   # Psi & a
+        PbSrcList, PbDstList = [], []   # Phi & b
+        PaMat = np.zeros((len(grid_nodes), len(grid_nodes)))
+        PbMat = np.zeros((len(grid_nodes), len(grid_nodes)))
         for rmi in range(len(grid_nodes)):
             for rmj in range(len(grid_nodes)):
-                if request_matrix[rmi][rmj] > 0:    # In this case, rmi == rmj is valid
+                if request_matrix[rmi][rmj] > 0:  # In this case, rmi == rmj is valid
                     # rmi -> rmj, rmj is rmi's forward neighbor, rmi is rmj's backward neighbor
-                    forward_neighbors[rmi].append([rmj, request_matrix[rmi][rmj] + EPSILON])
-                    backward_neighbors[rmj].append([rmi, request_matrix[rmi][rmj] + EPSILON])
+                    # forward neighborhood: features of rmj should propagate to rmi, thus rmj->rmi
+                    # backward neighborhood: features of rmi should propagate to rmj, thus rmi->rmj
+                    PaSrcList, PaDstList = pushGraphEdge(PaSrcList, PaDstList, None, rmj, rmi, None)
+                    PaMat[rmj][rmi] = request_matrix[rmi][rmj] + EPSILON
+                    PbSrcList, PbDstList = pushGraphEdge(PbSrcList, PbDstList, None, rmi, rmj, None)
+                    PbMat[rmi][rmj] = request_matrix[rmi][rmj] + EPSILON
+        PaSum = np.sum(PaMat, axis=0)
         for ni in range(len(grid_nodes)):
-            if len(forward_neighbors[ni]) > 0:
-                sumFwi = np.sum(np.array(forward_neighbors[ni])[:, 1])
-                for j_pair_ind in range(len(forward_neighbors[ni])):
-                    forward_neighbors[ni][j_pair_ind][1] /= sumFwi
-            if len(backward_neighbors[ni]) > 0:
-                sumBwi = np.sum(np.array(backward_neighbors[ni])[:, 1])
-                for j_pair_ind in range(len(backward_neighbors[ni])):
-                    backward_neighbors[ni][j_pair_ind][1] /= sumBwi
-        GVPaPb['Pa'] = forward_neighbors
-        GVPaPb['Pb'] = backward_neighbors
+            if PaSum[ni] == 0:
+                continue
+            for nj in range(len(grid_nodes)):
+                PaMat[nj][ni] /= PaSum[ni]
+        PbSum = np.sum(PbMat, axis=0)
+        for ni in range(len(grid_nodes)):
+            if PbSum[ni] == 0:
+                continue
+            for nj in range(len(grid_nodes)):
+                PbMat[nj][ni] /= PbSum[ni]
 
-        # Save GVPaPb as GVPaPb.npy
-        np.save(os.path.join(curDir, 'GVPaPb.npy'), GVPaPb)
+        FNGraph = dgl.graph((PaSrcList, PaDstList), num_nodes=len(grid_nodes))
+        FNGraph.ndata['pre_w'] = torch.from_numpy(PaMat)
+        BNGraph = dgl.graph((PbSrcList, PbDstList), num_nodes=len(grid_nodes))
+        BNGraph.ndata['pre_w'] = torch.from_numpy(PbMat)
+
+        # Save two neighborhood graphs
+        dgl.save_graphs(os.path.join(curDir, 'FBGraphs.dgl'), [FNGraph, BNGraph])
 
         lowT += pd.Timedelta(hours=1)
         upT += pd.Timedelta(hours=1)
@@ -286,9 +318,11 @@ if __name__ == '__main__':
 
     # 2
     gridNodes = makeGridNodes(gridInfo)
-    rtc = getRTc(gridNodes, max(gridInfo['gridH'], gridInfo['gridW']) * 1.05)
-    saveRTc(rtc, os.path.join(folderName, 'RTc.npy'))
-    # print(np.load(os.path.join(folderName, 'RTc.npy'), allow_pickle=True).item())  # Load Example
+    geoGraph = getGeoGraph(gridNodes, max(gridInfo['gridH'], gridInfo['gridW']) * 1.05)
+    saveGeoGraph(geoGraph, os.path.join(folderName, 'GeoGraph.dgl'))
+    # print(dgl.load_graphs(os.path.join(folderName, 'GeoGraph.dgl')))  # Load Example
 
     # 3
     splitData(FLAGS.data, folderName, gridNodes, gridInfo, FLAGS.exportRequests == 1)
+    # print(np.load('GV.npy', allow_pickle=True).item())  # Load Example
+    # (fg, bg), _ = dgl.load_graphs('FBGraphs.dgl'))  # Load Example

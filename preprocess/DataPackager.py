@@ -136,8 +136,13 @@ def getGeoGraph(grid_nodes, L):
         for nj in range(len(grid_nodes)):
             TcMat[nj][ni] /= TcSum[ni]
 
+    # Transform node data TcMat to edge data TcEdges
+    TcEdges = []
+    for i in range(len(RSrcList)):
+        TcEdges.append(TcMat[RSrcList[i]][RDstList[i]])
+
     GeoGraph = dgl.graph((RSrcList, RDstList), num_nodes=len(grid_nodes))
-    GeoGraph.ndata['pre_w'] = torch.from_numpy(TcMat)
+    GeoGraph.edata['pre_w'] = torch.Tensor(TcEdges)
 
     print('Geographical info generated.')
     return GeoGraph
@@ -241,10 +246,18 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1):
             for nj in range(len(grid_nodes)):
                 PbMat[nj][ni] /= PbSum[ni]
 
+        # Transform node data Mat to edge data Edges
+        PaEdges = []
+        for paei in range(len(PaSrcList)):
+            PaEdges.append(PaMat[PaSrcList[paei]][PaDstList[paei]])
+        PbEdges = []
+        for pbei in range(len(PbSrcList)):
+            PbEdges.append(PbMat[PbSrcList[pbei]][PbDstList[pbei]])
+
         FNGraph = dgl.graph((PaSrcList, PaDstList), num_nodes=len(grid_nodes))
-        FNGraph.ndata['pre_w'] = torch.from_numpy(PaMat)
+        FNGraph.edata['pre_w'] = torch.Tensor(PaEdges)
         BNGraph = dgl.graph((PbSrcList, PbDstList), num_nodes=len(grid_nodes))
-        BNGraph.ndata['pre_w'] = torch.from_numpy(PbMat)
+        BNGraph.edata['pre_w'] = torch.Tensor(PbEdges)
 
         # Save two neighborhood graphs
         dgl.save_graphs(os.path.join(curDir, 'FBGraphs.dgl'), [FNGraph, BNGraph])

@@ -11,5 +11,6 @@ log/
 data/
 **/*.csv
 **/grid_info.json
-**/RTc.npy
-**/GVPaPb.npy
+**/GeoGraph.dgl
+**/FBGraphs.dgl
+**/GVQ.npy

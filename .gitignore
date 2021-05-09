@@ -7,6 +7,9 @@ desktop.ini
 # Log
 log/
 
+# Python
+**/__pycache__
+
 # Data
 data/
 **/*.csv

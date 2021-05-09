@@ -33,10 +33,10 @@ class SpatAttLayer(nn.Module):
 
 if __name__ == '__main__':
     """ Test """
-    GVQ = np.load('GVQ.npy', allow_pickle=True).item()
+    GVQ = np.load('test/GVQ.npy', allow_pickle=True).item()
     G, V, Q = GVQ['G'], GVQ['V'], GVQ['Q']
-    (dfg, dbg,), _ = dgl.load_graphs('FBGraphs.dgl')
-    (dgg,), _ = dgl.load_graphs('GeoGraph.dgl')
+    (dfg, dbg,), _ = dgl.load_graphs('test/FBGraphs.dgl')
+    (dgg,), _ = dgl.load_graphs('test/GeoGraph.dgl')
     V = torch.from_numpy(V)
 
     spatAttLayer = SpatAttLayer(feat_dim=7, hidden_dim=16, num_heads=3, gate=True)

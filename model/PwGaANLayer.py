@@ -59,7 +59,7 @@ class PwGaANLayer(nn.Module):
             meanFeat = torch.mean(pwFeat, dim=1)
             gComb = torch.cat([nodes.data['v'], maxFeat, meanFeat], dim=1)
             gFCVal = self.gate_fc(gComb)
-            gVal = F.sigmoid(gFCVal)
+            gVal = torch.sigmoid(gFCVal)
             h = gVal * h
             test1 = gFCVal.detach().numpy()
             test2 = gVal.detach().numpy()

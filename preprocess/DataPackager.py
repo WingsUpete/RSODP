@@ -14,6 +14,7 @@ import torch
 import dgl
 
 EPSILON = 1e-12
+DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
 def haversine(c0, c1):
@@ -169,6 +170,17 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1):
     totalH = round((maxT - minT) / pd.Timedelta(hours=1))
     lowT, upT = minT, minT + pd.Timedelta(hours=1)
     print('Dataframe prepared. Total hours = {}.'.format(totalH))
+
+    req_info = {
+        'name': path2FileNameWithoutExt(fPath),
+        'minT': minT.strftime(DATE_FORMAT),
+        'maxT': maxT.strftime(DATE_FORMAT),
+        'totalH': totalH
+    }
+    req_info_path = os.path.join(folder, 'req_info.json')
+    with open(req_info_path, 'w') as f:
+        json.dump(req_info, f)
+    print('requests info saved to {}'.format(req_info_path))
 
     for i in range(totalH):
         curH = i + 1

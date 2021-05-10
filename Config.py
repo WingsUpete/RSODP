@@ -24,6 +24,9 @@ TIME_SLOT_ENDURANCE_DEFAULT = 1     # hour
 
 TEMP_FEAT_NAMES = ['St', 'Sp', 'Stpm', 'Stpp']
 
+D_PERCENTAGE_DEFAULT = 0.8
+G_PERCENTAGE_DEFAULT = 0.2
+
 # Debug
 DEBUG = True
 

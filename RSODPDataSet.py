@@ -15,11 +15,10 @@ sys.stderr = stderr
 import numpy as np
 import torch
 
+import Config
+
 # Ignore warnings
 warnings.filterwarnings('ignore')
-
-
-TEMP_FEAT_NAMES = ['St', 'Sp', 'Stpm', 'Stpp']
 
 
 class RSODPDataSetEntity(DGLDataset):
@@ -47,7 +46,7 @@ class RSODPDataSetEntity(DGLDataset):
 
         # sample: for each time slot: (fg, bg, gg, V)
         cur_sample_inputs = {}
-        for temp_feat in TEMP_FEAT_NAMES:
+        for temp_feat in Config.TEMP_FEAT_NAMES:
             temp_feat_sample_inputs = []
             for ts in cur_sample_ref['record'][temp_feat]:
                 GVQ_ts = np.load(os.path.join(self.data_dir, str(ts), 'GVQ.npy'), allow_pickle=True).item()

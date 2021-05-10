@@ -11,7 +11,17 @@ WORKERS_DEFAULT = 4
 USE_GPU_DEFAULT = 1
 NETWORK_DEFAULT = 'Gallat'
 MODE_DEFAULT = 'train'
-EVAL_DEFAULT = 'eval'   # should be a model file name
+EVAL_DEFAULT = 'eval.pt'   # should be a model file name
+MODEL_DIR_DEFAULT = 'model/'
+
+MAX_NORM_DEFAULT = 10.0
+FEAT_DIM_DEFAULT = 7
+QUERY_DIM_DEFAULT = 5
+HIDDEN_DIM_DEFAULT = 16
 
 # Debug
 DEBUG = True
+
+# DataSet
+HISTORICAL_RECORDS_NUM_DEFAULT = 7
+TIME_SLOT_ENDURANCE_DEFAULT = 1     # hour

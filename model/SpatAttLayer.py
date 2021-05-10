@@ -23,11 +23,15 @@ class SpatAttLayer(nn.Module):
         # gain = nn.init.calculate_gain('leaky_relu', 0.2)  # TODO: gain - leaky_relu with negative_slope=0.2
         nn.init.xavier_normal_(self.proj_fc.weight, gain=gain)
 
-    def forward(self, fg: dgl.DGLGraph, bg: dgl.DGLGraph, gg: dgl.DGLGraph, feat):
+    def forward(self, fg: dgl.DGLGraph, bg: dgl.DGLGraph, gg: dgl.DGLGraph):
+        feat = fg.ndata['v']
         proj_feat = self.proj_fc(feat)
-        h_fwd = self.fwdSpatAttLayer(fg, feat, proj_feat)
-        h_bwd = self.bwdSpatAttLayer(bg, feat, proj_feat)
-        h_geo = self.geoSpatAttLayer(gg, feat, proj_feat)
+        fg.ndata['proj_z'] = proj_feat
+        bg.ndata['proj_z'] = proj_feat
+        gg.ndata['proj_z'] = proj_feat
+        h_fwd = self.fwdSpatAttLayer(fg)
+        h_bwd = self.bwdSpatAttLayer(bg)
+        h_geo = self.geoSpatAttLayer(gg)
         h = torch.cat([proj_feat, h_fwd, h_bwd, h_geo], dim=1)
         return h
 
@@ -42,7 +46,10 @@ if __name__ == '__main__':
 
     spatAttLayer = SpatAttLayer(feat_dim=7, hidden_dim=16, num_heads=3, gate=True)
     print(V, V.shape)
-    out = spatAttLayer(dfg, dbg, dgg, V)
+    dfg.ndata['v'] = V
+    dbg.ndata['v'] = V
+    dgg.ndata['v'] = V
+    out = spatAttLayer(dfg, dbg, dgg)
     print(out, out.shape)
     test = out.detach().numpy()
 

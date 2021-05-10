@@ -6,17 +6,26 @@ import torch.nn.functional as F
 from .SpatAttLayer import SpatAttLayer
 
 
+TEMP_FEAT_NAMES = ['St', 'Sp', 'Stpm', 'Stpp']
+
+
 class Gallat(nn.Module):
     def __init__(self, feat_dim=7, query_dim=5, hidden_dim=16):
         super(Gallat, self).__init__()
         self.feat_dim = feat_dim
         self.query_dim = query_dim
         self.hidden_dim = hidden_dim
+        self.spat_embedding_dim = 4 * hidden_dim
 
         # Spatial Attention Layer
         self.spatAttLayer = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=1, gate=False)
 
-    def forward(self, record, query):
+    def forward(self, record, query, bs):
+        # Extract spatial features
+        spat_embed_dict = {}
+        for temp_feat in TEMP_FEAT_NAMES:
+            spat_embed_dict[temp_feat] = [self.spatAttLayer(fg, bg, gg).reshape(bs, -1, self.spat_embedding_dim) for (fg, bg, gg) in record[temp_feat]]
+
         return 0
 
 

@@ -66,19 +66,19 @@ class PwGaANLayer(nn.Module):
 
         return {'h': h}
 
-    def forward(self, g: dgl.DGLGraph, feat, proj_feat):
-        # Wa: shared attention to features v (or h for multiple GAT layers)
-        g.ndata['v'] = feat
-        g.ndata['proj_z'] = proj_feat
+    def forward(self, g: dgl.DGLGraph):
+        with g.local_scope():
+            feat = g.ndata['v']
 
-        z = self.Wa(feat)
-        g.ndata['z'] = z
+            # Wa: shared attention to features v (or h for multiple GAT layers)
+            z = self.Wa(feat)
+            g.ndata['z'] = z
 
-        # AttentionNet
-        g.apply_edges(self.edge_attention)
-        # Message Passing
-        g.update_all(self.message_func, self.reduce_func)
-        return g.ndata['h']
+            # AttentionNet
+            g.apply_edges(self.edge_attention)
+            # Message Passing
+            g.update_all(self.message_func, self.reduce_func)
+            return g.ndata['h']
 
 
 class MultiHeadPwGaANLayer(nn.Module):
@@ -90,13 +90,12 @@ class MultiHeadPwGaANLayer(nn.Module):
             self.heads.append(PwGaANLayer(in_dim, out_dim, self.gate))
         self.merge = merge
 
-    def forward(self, g: dgl.DGLGraph, feat, proj_feat):
-        with g.local_scope():
-            head_outs = [attn_head(g, feat, proj_feat) for attn_head in self.heads]
-            if self.merge == 'cat':
-                return torch.cat(head_outs, dim=1)
-            else:
-                return torch.mean(torch.stack(head_outs))
+    def forward(self, g: dgl.DGLGraph):
+        head_outs = [attn_head(g) for attn_head in self.heads]
+        if self.merge == 'cat':
+            return torch.cat(head_outs, dim=1)
+        else:
+            return torch.mean(torch.stack(head_outs))
 
 
 if __name__ == '__main__':

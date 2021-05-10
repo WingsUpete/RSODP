@@ -28,7 +28,7 @@ def batch2device(record: dict, query: torch.Tensor, target: torch.Tensor, device
     """ Transfer all sample data into the device (cpu/gpu) """
     # Transfer record
     for temp_feat in Config.TEMP_FEAT_NAMES:
-        record[temp_feat] = [(fg.to(device), bg.to(device), gg.to(device), V.to(device)) for (fg, bg, gg, V) in record[temp_feat]]
+        record[temp_feat] = [(fg.to(device), bg.to(device), gg.to(device)) for (fg, bg, gg) in record[temp_feat]]
 
     # Transfer query
     query = query.to(device)
@@ -98,7 +98,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
             torch.nn.utils.clip_grad_norm_(net.parameters(), max_norm=Config.MAX_NORM_DEFAULT)
 
             optimizer.zero_grad()
-            res = net(record, query)
+            res = net(record, query, bs)
             # loss = criterion(res, target)
             # loss.backward()
             # optimizer.step()

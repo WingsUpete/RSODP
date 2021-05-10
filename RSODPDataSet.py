@@ -22,10 +22,9 @@ warnings.filterwarnings('ignore')
 
 
 class RSODPDataSetEntity(DGLDataset):
-    def __init__(self, data_dir: str, sample_list: list, geoG: dgl.DGLGraph, ds_type='train'):
+    def __init__(self, data_dir: str, sample_list: list, ds_type='train'):
         self.data_dir = data_dir
         self.sample_list = sample_list
-        self.geoG = geoG
         self.ds_type = ds_type
 
     def process(self):
@@ -52,7 +51,11 @@ class RSODPDataSetEntity(DGLDataset):
                 GVQ_ts = np.load(os.path.join(self.data_dir, str(ts), 'GVQ.npy'), allow_pickle=True).item()
                 V_ts = torch.from_numpy(GVQ_ts['V'])
                 (fg_ts, bg_ts,), _ = dgl.load_graphs(os.path.join(self.data_dir, str(ts), 'FBGraphs.dgl'))
-                temp_feat_sample_inputs.append((fg_ts, bg_ts, self.geoG, V_ts))
+                (gg_ts,), _ = dgl.load_graphs(os.path.join(self.data_dir, 'GeoGraph.dgl'))
+                fg_ts.ndata['v'] = V_ts
+                bg_ts.ndata['v'] = V_ts
+                gg_ts.ndata['v'] = V_ts
+                temp_feat_sample_inputs.append((fg_ts, bg_ts, gg_ts))
             cur_sample_inputs[temp_feat] = temp_feat_sample_inputs
 
         cur_sample_data = {
@@ -73,7 +76,6 @@ class RSODPDataSet:
     def __init__(self, data_dir: str, his_rec_num=7, time_slot_endurance=1):
         self.data_dir = data_dir
         self.req_info = json.load(open(os.path.join(data_dir, 'req_info.json')))
-        self.geoG = dgl.load_graphs(os.path.join(data_dir, 'GeoGraph.dgl'))[0][0]
         self.his_rec_num = his_rec_num  # P
         self.time_slot_num_per_day = 24 / time_slot_endurance  # l
 
@@ -81,9 +83,9 @@ class RSODPDataSet:
         self.total_sample_num = len(self.total_sample_list)
 
         self.train_list, self.valid_list, self.test_list = self.splitTrainValidTest()
-        self.train_set = RSODPDataSetEntity(self.data_dir, sample_list=self.train_list, geoG=self.geoG, ds_type='train')
-        self.valid_set = RSODPDataSetEntity(self.data_dir, sample_list=self.valid_list, geoG=self.geoG, ds_type='valid')
-        self.test_set = RSODPDataSetEntity(self.data_dir, sample_list=self.test_list, geoG=self.geoG, ds_type='test')
+        self.train_set = RSODPDataSetEntity(self.data_dir, sample_list=self.train_list, ds_type='train')
+        self.valid_set = RSODPDataSetEntity(self.data_dir, sample_list=self.valid_list, ds_type='valid')
+        self.test_set = RSODPDataSetEntity(self.data_dir, sample_list=self.test_list, ds_type='test')
 
     def constructSampleList(self):
         totalH = self.req_info['totalH']

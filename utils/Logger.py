@@ -12,42 +12,54 @@ if not os.path.isdir(LOGGING_FOLDER):
 
 
 class Logger:
-    def __init__(self, logging_folder=LOGGING_FOLDER):
-        self.logger = logging.getLogger()
-        self.logger.setLevel(logging.DEBUG)
-        self.logging_folder = logging_folder
-        if not os.path.isdir(self.logging_folder):
-            os.mkdir(self.logging_folder)
+    def __init__(self, activate=True, logging_folder=LOGGING_FOLDER):
+        self.activate = activate
+        if self.activate:
+            self.logger = logging.getLogger()
+            self.logger.setLevel(logging.DEBUG)
+            self.logging_folder = logging_folder
+            if not os.path.isdir(self.logging_folder):
+                os.mkdir(self.logging_folder)
 
-        # Create a File Handler
-        curT = datetime.now()
-        curTStr = curT.strftime("%Y%m%d_%H_%M_%S")
-        fName = '{}.log'.format(curTStr)
+            # Create a File Handler
+            curT = datetime.now()
+            curTStr = curT.strftime("%Y%m%d_%H_%M_%S")
+            fName = '{}.log'.format(curTStr)
 
-        self.f_handler = logging.FileHandler(os.path.join(self.logging_folder, fName))
+            self.f_handler = logging.FileHandler(os.path.join(self.logging_folder, fName))
 
-        # Create an stdout Stream Handler
-        self.stdout_handler = logging.StreamHandler(sys.stdout)
+            # Create an stdout Stream Handler
+            self.stdout_handler = logging.StreamHandler(sys.stdout)
 
-        self.logger.addHandler(self.f_handler)
-        self.logger.addHandler(self.stdout_handler)
+            self.logger.addHandler(self.f_handler)
+            self.logger.addHandler(self.stdout_handler)
 
     """
         Log a message into stdout and log file simultaneously
     """
-    def log(self, message):
-        self.logger.debug(message)
+    def log(self, message='\nCHECK YOUR CODE\n'):
+        if self.activate:
+            self.logger.debug(message)
 
     def close(self):
-        self.f_handler.close()
-        self.stdout_handler.close()
+        if self.activate:
+            self.f_handler.close()
+            self.stdout_handler.close()
 
 
 if __name__ == '__main__':
     """
         Test
     """
-    logger = Logger(logging_folder='test/')
+    logger = Logger(activate=False)
+    logger.log('Test test')
+    logger.log('Test 0')
+    logger.log('Test 1')
+    logger.close()
+
+    print('\nTest activated logger.')
+
+    logger = Logger(activate=True, logging_folder='test/')
     logger.log('Test test')
     logger.log('Test 0')
     logger.log('Test 1')

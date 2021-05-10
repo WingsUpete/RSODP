@@ -6,6 +6,7 @@ desktop.ini
 
 # Log
 log/
+**/*.log
 
 # Python
 **/__pycache__

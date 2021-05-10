@@ -311,7 +311,7 @@ def ID2Coord(gridID, grid_info):
 if __name__ == '__main__':
     """
     Usage Example:
-        python DataPackager.py -d ny2016_0101to0331.csv --minLat 40.4944 --maxLat 40.9196 --minLng -74.2655 --maxLng -73.6957 --refGridH 2.5 --refGridW 2.5 -er 1
+        python DataPackager.py -d ny2016_0101to0331.csv --minLat 40.4944 --maxLat 40.9196 --minLng -74.2655 --maxLng -73.6957 --refGridH 2.5 --refGridW 2.5 -er 1 -od ../data/
     """
     # Command Line Arguments
     parser = argparse.ArgumentParser()
@@ -333,13 +333,20 @@ if __name__ == '__main__':
                             2.5))
     parser.add_argument('-er', '--exportRequests', type=int, default=1,
                         help='Whether the split requests should be exported, default={}'.format(1))
+    parser.add_argument('-od', '--outDir', type=str, default='',
+                        help='Where the data should be exported, default={}'.format('""'))
     FLAGS, unparsed = parser.parse_known_args()
 
     if not os.path.isfile(FLAGS.data):
         print('Data file path {} is invalid.'.format(FLAGS.data))
         exit(-1)
 
+    if not os.path.isdir(FLAGS.outDir):
+        print('Output path {} is invalid.'.format(FLAGS.outDir))
+        exit(-2)
+
     folderName = path2FileNameWithoutExt(FLAGS.data)
+    folderName = os.path.join(FLAGS.outDir, folderName)
     if not os.path.isdir(folderName):
         os.mkdir(folderName)
 

@@ -216,7 +216,7 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1):
         query_feature_vectors = []
         inDs = np.sum(request_matrix, axis=0)  # Col-wise: Total number of nodes pointing to current node = In Degree
         outDs = np.sum(request_matrix, axis=1)  # Row-wise: Total number of nodes current node points to = Out Degree
-        GDVQ['D'] = outDs.reshape(-1, 1).astype(np.float32)
+        GDVQ['D'] = outDs.astype(np.float32)
 
         for vi in range(len(grid_nodes)):
             viRow, viCol = ID2Coord(vi, grid_info)

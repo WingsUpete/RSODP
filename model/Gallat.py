@@ -28,19 +28,19 @@ class Gallat(nn.Module):
         # Transferring Attention Layer
         self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim, activate_function_method='sigmoid')
 
-    def forward(self, record, query, bs):
+    def forward(self, record, query):
         # Extract spatial features
         spat_embed_dict = {}
         for temp_feat in TEMP_FEAT_NAMES:
-            spat_embed_dict[temp_feat] = [self.spatAttLayer(fg, bg, gg).reshape(bs, -1, self.spat_embed_dim) for (fg, bg, gg) in record[temp_feat]]
+            spat_embed_dict[temp_feat] = [self.spatAttLayer(fg, bg, gg).reshape(-1, fg.number_of_nodes(), self.spat_embed_dim) for (fg, bg, gg) in record[temp_feat]]
 
         # Extract temporal features
         temp_embed = self.tempAttLayer(query, spat_embed_dict)
 
         # Transferring features to perform predictions
-        demands = self.tranAttLayer(temp_embed)
+        demands, Gtp1 = self.tranAttLayer(temp_embed)
 
-        return demands
+        return demands, Gtp1
 
 
 if __name__ == '__main__':

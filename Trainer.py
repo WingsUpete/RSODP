@@ -99,7 +99,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
             torch.nn.utils.clip_grad_norm_(net.parameters(), max_norm=Config.MAX_NORM_DEFAULT)
 
             optimizer.zero_grad()
-            res = net(record, query, bs)
+            res_D, res_G = net(record, query)
             # loss = criterion(res, target)
             # loss.backward()
             # optimizer.step()

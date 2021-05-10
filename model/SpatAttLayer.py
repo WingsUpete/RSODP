@@ -38,8 +38,8 @@ class SpatAttLayer(nn.Module):
 
 if __name__ == '__main__':
     """ Test: Remove dot in the package importing to avoid errors """
-    GVQ = np.load('test/GVQ.npy', allow_pickle=True).item()
-    G, V, Q = GVQ['G'], GVQ['V'], GVQ['Q']
+    GDVQ = np.load('test/GDVQ.npy', allow_pickle=True).item()
+    V = GDVQ['V']
     (dfg, dbg,), _ = dgl.load_graphs('test/FBGraphs.dgl')
     (dgg,), _ = dgl.load_graphs('test/GeoGraph.dgl')
     V = torch.from_numpy(V)

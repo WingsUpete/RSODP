@@ -2,7 +2,7 @@
 Package the data into a specified folder, which will contain:
 1. grid_info.json (minLat, maxLat, minLng, maxLng, girdH, gridW, latLen, latGridNum, gridLat, ..., gridNum)
 2. GeoGraph.dgl which stores the geographical graph GeoGraph
-3. Passenger Request Data separated in hours ((1/request.csv, 1/GVQ.npy, 1/FBGraphs.dgl), ...)
+3. Passenger Request Data separated in hours ((1/request.csv, 1/GDVQ.npy, 1/FBGraphs.dgl), ...)
 """
 import argparse
 import os
@@ -156,7 +156,7 @@ def saveGeoGraph(geoG, fPath):
 
 def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1):
     """
-    Split data in hours (request.csv, GVQ.npy) of each DDW Snapshot Graph
+    Split data in hours (request.csv, GDVQ.npy) of each DDW Snapshot Graph
     :param fPath: The path of request data file
     :param folder: The path of the working directory/folder
     :param grid_nodes: Grid Coordinate List storing the coordinates of each grid/node
@@ -196,7 +196,7 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1):
         df_split = df.iloc[mask]
         dayOfWeek = lowT.weekday()  # Mon: 0, ..., Sun: 6
 
-        GVQ = {}
+        GDVQ = {}
 
         # Save request.csv
         if export_requests:
@@ -209,13 +209,15 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1):
             srcRow, srcCol, srcID = inWhichGrid((curData['src lat'], curData['src lng']), grid_info)
             dstRow, dstCol, dstID = inWhichGrid((curData['dst lat'], curData['dst lng']), grid_info)
             request_matrix[srcID][dstID] += curData['volume']
-        GVQ['G'] = request_matrix.astype(np.float32)
+        GDVQ['G'] = request_matrix.astype(np.float32)
 
         # Get Feature Matrix V
         feature_vectors = []
         query_feature_vectors = []
         inDs = np.sum(request_matrix, axis=0)  # Col-wise: Total number of nodes pointing to current node = In Degree
         outDs = np.sum(request_matrix, axis=1)  # Row-wise: Total number of nodes current node points to = Out Degree
+        GDVQ['D'] = outDs.reshape(-1, 1).astype(np.float32)
+
         for vi in range(len(grid_nodes)):
             viRow, viCol = ID2Coord(vi, grid_info)
             feature_vector = [viRow, viCol, outDs[vi], inDs[vi], vi, curH, dayOfWeek]
@@ -224,11 +226,11 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1):
             query_feature_vectors.append(query_feature_vector)
         feature_matrix = np.array(feature_vectors)
         query_feature_matrix = np.array(query_feature_vectors)
-        GVQ['V'] = feature_matrix.astype(np.float32)
-        GVQ['Q'] = query_feature_matrix.astype(np.float32)
+        GDVQ['V'] = feature_matrix.astype(np.float32)
+        GDVQ['Q'] = query_feature_matrix.astype(np.float32)
 
-        # Save GVQ as GVQ.npy
-        np.save(os.path.join(curDir, 'GVQ.npy'), GVQ)
+        # Save GDVQ as GDVQ.npy
+        np.save(os.path.join(curDir, 'GDVQ.npy'), GDVQ)
 
         # Get Psi (Forward Neighborhood) and Phi (Backward Neighborhood)
         PaSrcList, PaDstList = [], []   # Psi & a

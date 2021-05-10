@@ -24,7 +24,7 @@ from model import Gallat
 import Config
 
 
-def batch2device(record: dict, query: torch.Tensor, target: torch.Tensor, device):
+def batch2device(record: dict, query: torch.Tensor, target_G: torch.Tensor, target_D: torch.Tensor, device):
     """ Transfer all sample data into the device (cpu/gpu) """
     # Transfer record
     for temp_feat in Config.TEMP_FEAT_NAMES:
@@ -34,9 +34,10 @@ def batch2device(record: dict, query: torch.Tensor, target: torch.Tensor, device
     query = query.to(device)
 
     # Transfer target
-    target = target.to(device)
+    target_G = target_G.to(device)
+    target_D = target_D.to(device)
 
-    return record, query, target
+    return record, query, target_G, target_D
 
 
 def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Config.MAX_EPOCHS_DEFAULT,
@@ -90,9 +91,9 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
         net.train()
         train_loss = 0
         for i, batch in enumerate(trainloader):
-            record, query, target = batch['record'], batch['query'], batch['target']
+            record, query, target_G, target_D = batch['record'], batch['query'], batch['target_G'], batch['target_D']
             if device:
-                record, query, target = batch2device(record, query, target, device)
+                record, query, target_G, target_D = batch2device(record, query, target_G, target_D, device)
 
             # Avoid exploding gradients
             torch.nn.utils.clip_grad_norm_(net.parameters(), max_norm=Config.MAX_NORM_DEFAULT)

@@ -15,6 +15,7 @@ log/
 data/
 **/*.csv
 **/grid_info.json
+**/req_info.json
 **/GeoGraph.dgl
 **/FBGraphs.dgl
-**/GVQ.npy
+**/GDVQ.npy

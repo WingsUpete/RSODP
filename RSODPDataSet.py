@@ -40,16 +40,16 @@ class RSODPDataSetEntity(DGLDataset):
         # T -> T+1 = target (G, Q)
         cur_T = cur_sample_ref['T']
         cur_Tp1 = cur_T + 1
-        GVQ_Tp1 = np.load(os.path.join(self.data_dir, str(cur_Tp1), 'GVQ.npy'), allow_pickle=True).item()
-        G_Tp1, Q_Tp1 = torch.from_numpy(GVQ_Tp1['G']), torch.from_numpy(GVQ_Tp1['Q'])
+        GDVQ_Tp1 = np.load(os.path.join(self.data_dir, str(cur_Tp1), 'GDVQ.npy'), allow_pickle=True).item()
+        G_Tp1, D_Tp1, Q_Tp1 = torch.from_numpy(GDVQ_Tp1['G']), torch.from_numpy(GDVQ_Tp1['D']), torch.from_numpy(GDVQ_Tp1['Q'])
 
         # sample: for each time slot: (fg, bg, gg, V)
         cur_sample_inputs = {}
         for temp_feat in Config.TEMP_FEAT_NAMES:
             temp_feat_sample_inputs = []
             for ts in cur_sample_ref['record'][temp_feat]:
-                GVQ_ts = np.load(os.path.join(self.data_dir, str(ts), 'GVQ.npy'), allow_pickle=True).item()
-                V_ts = torch.from_numpy(GVQ_ts['V'])
+                GDVQ_ts = np.load(os.path.join(self.data_dir, str(ts), 'GDVQ.npy'), allow_pickle=True).item()
+                V_ts = torch.from_numpy(GDVQ_ts['V'])
                 (fg_ts, bg_ts,), _ = dgl.load_graphs(os.path.join(self.data_dir, str(ts), 'FBGraphs.dgl'))
                 (gg_ts,), _ = dgl.load_graphs(os.path.join(self.data_dir, 'GeoGraph.dgl'))
                 fg_ts.ndata['v'] = V_ts
@@ -59,7 +59,8 @@ class RSODPDataSetEntity(DGLDataset):
             cur_sample_inputs[temp_feat] = temp_feat_sample_inputs
 
         cur_sample_data = {
-            'target': G_Tp1,
+            'target_G': G_Tp1,
+            'target_D': D_Tp1,
             'query': Q_Tp1,
             'record': cur_sample_inputs
         }

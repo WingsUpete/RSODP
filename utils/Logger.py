@@ -12,16 +12,19 @@ if not os.path.isdir(LOGGING_FOLDER):
 
 
 class Logger:
-    def __init__(self):
+    def __init__(self, logging_folder=LOGGING_FOLDER):
         self.logger = logging.getLogger()
         self.logger.setLevel(logging.DEBUG)
+        self.logging_folder = logging_folder
+        if not os.path.isdir(self.logging_folder):
+            os.mkdir(self.logging_folder)
 
         # Create a File Handler
         curT = datetime.now()
         curTStr = curT.strftime("%Y%m%d_%H_%M_%S")
         fName = '{}.log'.format(curTStr)
-        print(os.path.join(LOGGING_FOLDER, fName))
-        self.f_handler = logging.FileHandler(os.path.join(LOGGING_FOLDER, fName))
+
+        self.f_handler = logging.FileHandler(os.path.join(self.logging_folder, fName))
 
         # Create an stdout Stream Handler
         self.stdout_handler = logging.StreamHandler(sys.stdout)
@@ -44,7 +47,7 @@ if __name__ == '__main__':
     """
         Test
     """
-    logger = Logger()
+    logger = Logger(logging_folder='test/')
     logger.log('Test test')
     logger.log('Test 0')
     logger.log('Test 1')

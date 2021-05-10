@@ -3,16 +3,17 @@ import dgl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import PwGaANLayer
+
+from .PwGaANLayer import MultiHeadPwGaANLayer
 
 
 class SpatAttLayer(nn.Module):
     def __init__(self, feat_dim, hidden_dim, num_heads, gate=False):
         super(SpatAttLayer, self).__init__()
         self.gate = gate
-        self.fwdSpatAttLayer = PwGaANLayer.MultiHeadPwGaANLayer(feat_dim, hidden_dim, num_heads, gate=self.gate)
-        self.bwdSpatAttLayer = PwGaANLayer.MultiHeadPwGaANLayer(feat_dim, hidden_dim, num_heads, gate=self.gate)
-        self.geoSpatAttLayer = PwGaANLayer.MultiHeadPwGaANLayer(feat_dim, hidden_dim, num_heads, gate=self.gate)
+        self.fwdSpatAttLayer = MultiHeadPwGaANLayer(feat_dim, hidden_dim, num_heads, gate=self.gate)
+        self.bwdSpatAttLayer = MultiHeadPwGaANLayer(feat_dim, hidden_dim, num_heads, gate=self.gate)
+        self.geoSpatAttLayer = MultiHeadPwGaANLayer(feat_dim, hidden_dim, num_heads, gate=self.gate)
         self.proj_fc = nn.Linear(feat_dim, hidden_dim, bias=False)
         self.reset_parameters()
 

@@ -14,6 +14,7 @@ if not os.path.isdir(LOGGING_FOLDER):
 class Logger:
     def __init__(self, activate=True, logging_folder=LOGGING_FOLDER):
         self.activate = activate
+        self.time_tag = datetime.now().strftime("%Y%m%d_%H_%M_%S")
         if self.activate:
             self.logger = logging.getLogger()
             self.logger.setLevel(logging.DEBUG)
@@ -22,14 +23,14 @@ class Logger:
                 os.mkdir(self.logging_folder)
 
             # Create a File Handler
-            curT = datetime.now()
-            curTStr = curT.strftime("%Y%m%d_%H_%M_%S")
-            fName = '{}.log'.format(curTStr)
+            fName = '{}.log'.format(self.time_tag)
 
             self.f_handler = logging.FileHandler(os.path.join(self.logging_folder, fName))
+            self.f_handler.terminator = ''
 
             # Create an stdout Stream Handler
             self.stdout_handler = logging.StreamHandler(sys.stdout)
+            self.stdout_handler.terminator = ''
 
             self.logger.addHandler(self.f_handler)
             self.logger.addHandler(self.stdout_handler)
@@ -52,15 +53,15 @@ if __name__ == '__main__':
         Test
     """
     logger = Logger(activate=False)
-    logger.log('Test test')
-    logger.log('Test 0')
-    logger.log('Test 1')
+    logger.log('Test test\n')
+    logger.log('Test 0\n')
+    logger.log('Test 1\n')
     logger.close()
 
     print('\nTest activated logger.')
 
     logger = Logger(activate=True, logging_folder='test/')
-    logger.log('Test test')
-    logger.log('Test 0')
-    logger.log('Test 1')
+    logger.log('Test test\n')
+    logger.log('Test 0\n')
+    logger.log('Test 1\n')
     logger.close()

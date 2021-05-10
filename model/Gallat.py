@@ -17,7 +17,7 @@ class Gallat(nn.Module):
         self.spatAttLayer = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=1, gate=False)
 
     def forward(self, record, query):
-        pass
+        return 0
 
 
 if __name__ == '__main__':

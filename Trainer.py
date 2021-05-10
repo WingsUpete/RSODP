@@ -24,6 +24,21 @@ from model import Gallat
 import Config
 
 
+def batch2device(record: dict, query: torch.Tensor, target: torch.Tensor, device):
+    """ Transfer all sample data into the device (cpu/gpu) """
+    # Transfer record
+    for temp_feat in Config.TEMP_FEAT_NAMES:
+        record[temp_feat] = [(fg.to(device), bg.to(device), gg.to(device), V.to(device)) for (fg, bg, gg, V) in record[temp_feat]]
+
+    # Transfer query
+    query = query.to(device)
+
+    # Transfer target
+    target = target.to(device)
+
+    return record, query, target
+
+
 def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Config.MAX_EPOCHS_DEFAULT,
           eval_freq=Config.EVAL_FREQ_DEFAULT, opt=Config.OPTIMIZER_DEFAULT, num_workers=Config.WORKERS_DEFAULT,
           use_gpu=True, data_dir=Config.DATA_DIR_DEFAULT, logr=Logger(activate=False), model=Config.NETWORK_DEFAULT,
@@ -73,11 +88,32 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     for epoch_i in range(ep):
         # train one round
         net.train()
+        train_loss = 0
         for i, batch in enumerate(trainloader):
             record, query, target = batch['record'], batch['query'], batch['target']
-            if i == 0:
+            if device:
+                record, query, target = batch2device(record, query, target, device)
+
+            # Avoid exploding gradients
+            torch.nn.utils.clip_grad_norm_(net.parameters(), max_norm=Config.MAX_NORM_DEFAULT)
+
+            optimizer.zero_grad()
+            res = net(record, query)
+            # loss = criterion(res, target)
+            # loss.backward()
+            # optimizer.step()
+
+            # Analysis
+            # train_loss += loss.item()
+
+            if i == 0:  # DEBUG
                 break
-        if epoch_i == 0:
+        # train_loss /= len(trainloader)
+        # logr.log('Training Round %d: loss = %.4f\n' % (epoch_i, train_loss))
+
+        # TODO: Evaluate Frequency on validation set
+
+        if epoch_i == 0:    # DEBUG
             break
 
 

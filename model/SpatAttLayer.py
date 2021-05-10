@@ -37,7 +37,7 @@ class SpatAttLayer(nn.Module):
 
 
 if __name__ == '__main__':
-    """ Test """
+    """ Test: Remove dot in the package importing to avoid errors """
     GVQ = np.load('test/GVQ.npy', allow_pickle=True).item()
     G, V, Q = GVQ['G'], GVQ['V'], GVQ['Q']
     (dfg, dbg,), _ = dgl.load_graphs('test/FBGraphs.dgl')
@@ -52,4 +52,3 @@ if __name__ == '__main__':
     out = spatAttLayer(dfg, dbg, dgg)
     print(out, out.shape)
     test = out.detach().numpy()
-

@@ -96,8 +96,3 @@ class MultiHeadPwGaANLayer(nn.Module):
             return torch.cat(head_outs, dim=1)
         else:
             return torch.mean(torch.stack(head_outs))
-
-
-if __name__ == '__main__':
-    """ Test """
-    pass

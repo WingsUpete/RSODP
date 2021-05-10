@@ -5,14 +5,22 @@ import torch.nn.functional as F
 
 from .ScaledDotProductAttention import ScaledDotProductAttention
 
+TEMP_FEAT_NAMES = ['St', 'Sp', 'Stpm', 'Stpp']
+
 
 class TempAttLayer(nn.Module):
-    def __init__(self):
+    def __init__(self, query_dim, embed_dim, rec_merge='sum', comb_merge='sum'):
         super(TempAttLayer, self).__init__()
+        self.query_dim = query_dim
+        self.embed_dim = embed_dim
+        self.rec_merge = rec_merge      # merging method for historical record attention
+        self.comb_merge = comb_merge    # merging method for combination attention
 
-    def forward(self):
-        pass
+        # Scaled Dot Product Attention
+        self.recScaledDotProductAttention = ScaledDotProductAttention(self.query_dim, self.embed_dim, merge=self.rec_merge)
+        self.combScaledDotProductAttention = ScaledDotProductAttention(self.query_dim, self.embed_dim, merge=self.comb_merge)
 
-
-if __name__ == '__main__':
-    print('Hello World')
+    def forward(self, query_feat, embed_feat_dict):
+        rec_embed_list = [self.recScaledDotProductAttention(query_feat, embed_feat_dict[temp_feat]) for temp_feat in TEMP_FEAT_NAMES]
+        comb_embed = self.combScaledDotProductAttention(query_feat, rec_embed_list)
+        return comb_embed

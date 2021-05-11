@@ -24,7 +24,9 @@ class TranAttLayer(nn.Module):
             # Shared Weight W_a for AttentionNet
             self.Wa = nn.Linear(self.embed_dim, self.embed_dim, bias=False)
             # AttentionNet outer linear layer
-            self.att_out_fc = nn.Linear(2 * self.embed_dim, 1, bias=False)
+            # split two fc to avoid concat
+            self.att_out_fc_l = nn.Linear(self.embed_dim, 1, bias=False)
+            self.att_out_fc_r = nn.Linear(self.embed_dim, 1, bias=False)
 
         self.reset_parameters(nonlinearity='sigmoid')
 
@@ -33,21 +35,20 @@ class TranAttLayer(nn.Module):
         nn.init.xavier_normal_(self.demand_fc.weight, gain=gain)
         if self.predict_G:
             # Attention
-            gain = nn.init.calculate_gain('relu')
-            # gain = nn.init.calculate_gain('leaky_relu', 0.2)  # TODO: gain - leaky_relu with negative_slope=0.2
+            gain = nn.init.calculate_gain('leaky_relu', 0.2)
             nn.init.xavier_normal_(self.Wa.weight, gain=gain)
-            nn.init.xavier_normal_(self.att_out_fc.weight, gain=gain)
+            nn.init.xavier_normal_(self.att_out_fc_l.weight, gain=gain)
+            nn.init.xavier_normal_(self.att_out_fc_r.weight, gain=gain)
 
     def predict_request_graph_attention(self, embed_feat_sample):
         num_nodes = embed_feat_sample.shape[-2]
         proj_embed_feat_sample = self.Wa(embed_feat_sample)
 
         # Apply Attention
-        pred_graph_constr = torch.zeros(num_nodes, num_nodes, 2 * self.embed_dim).to(proj_embed_feat_sample.device)
+        A = torch.zeros(num_nodes, num_nodes, 1, device=proj_embed_feat_sample.device)
         for i in range(num_nodes):
             for j in range(num_nodes):
-                pred_graph_constr[i][j] = torch.cat([proj_embed_feat_sample[i], proj_embed_feat_sample[j]])
-        A = self.att_out_fc(pred_graph_constr)
+                A[i][j] = self.att_out_fc_l(proj_embed_feat_sample[i]) + self.att_out_fc_r(proj_embed_feat_sample[j])
         A = F.leaky_relu(A)
         Q = F.softmax(A, dim=1)
         Q = Q.reshape(num_nodes, num_nodes)

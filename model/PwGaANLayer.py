@@ -10,28 +10,34 @@ class PwGaANLayer(nn.Module):
         # Shared Weight W_a for AttentionNet
         self.Wa = nn.Linear(in_dim, out_dim, bias=False)
         # AttentionNet outer linear layer
-        self.att_out_fc = nn.Linear(2 * out_dim, 1, bias=False)
+        # split fc to avoid cat
+        self.att_out_fc_l = nn.Linear(out_dim, 1, bias=False)
+        self.att_out_fc_r = nn.Linear(out_dim, 1, bias=False)
         # Head gate layer
         self.gate = gate
         if self.gate:
-            self.gate_fc = nn.Linear(2 * in_dim + out_dim, 1, bias=False)
+            # split fc to avoid cat
+            self.gate_fc_l = nn.Linear(in_dim, 1, bias=False)
+            self.gate_fc_m = nn.Linear(out_dim, 1, bias=False)
+            self.gate_fc_r = nn.Linear(in_dim, 1, bias=False)
             self.Wg = nn.Linear(in_dim, out_dim, bias=False)
         self.reset_parameters()
 
     def reset_parameters(self):
         """ Reinitialize learnable parameters. """
-        gain = nn.init.calculate_gain('relu')
-        # gain = nn.init.calculate_gain('leaky_relu', 0.2)  # TODO: gain - leaky_relu with negative_slope=0.2
+        gain = nn.init.calculate_gain('leaky_relu', 0.2)
         nn.init.xavier_normal_(self.Wa.weight, gain=gain)
-        nn.init.xavier_normal_(self.att_out_fc.weight, gain=gain)
+        nn.init.xavier_normal_(self.att_out_fc_l.weight, gain=gain)
+        nn.init.xavier_normal_(self.att_out_fc_r.weight, gain=gain)
         if self.gate:
-            # TODO: gain - sigmoid
+            gain = nn.init.calculate_gain('sigmoid')
             nn.init.xavier_normal_(self.Wg.weight, gain=gain)
-            nn.init.xavier_normal_(self.gate_fc.weight, gain=gain)
+            nn.init.xavier_normal_(self.gate_fc_l.weight, gain=gain)
+            nn.init.xavier_normal_(self.gate_fc_m.weight, gain=gain)
+            nn.init.xavier_normal_(self.gate_fc_r.weight, gain=gain)
 
     def edge_attention(self, edges):
-        z_comb = torch.cat([edges.data['pre_w'] * edges.src['z'], edges.dst['z']], dim=1)
-        a = self.att_out_fc(z_comb)
+        a = self.att_out_fc_l(edges.data['pre_w'] * edges.src['z']) + self.att_out_fc_r(edges.dst['z'])
         return {'e': F.leaky_relu(a)}
 
     def message_func(self, edges):
@@ -57,8 +63,7 @@ class PwGaANLayer(nn.Module):
             gateProj = self.Wg(pwFeat)
             maxFeat = torch.max(gateProj, dim=1)[0]
             meanFeat = torch.mean(pwFeat, dim=1)
-            gComb = torch.cat([nodes.data['v'], maxFeat, meanFeat], dim=1)
-            gFCVal = self.gate_fc(gComb)
+            gFCVal = self.gate_fc_l(nodes.data['v']) + self.gate_fc_m(maxFeat) + self.gate_fc_r(meanFeat)
             gVal = torch.sigmoid(gFCVal)
             h = gVal * h
             test1 = gFCVal.detach().numpy()

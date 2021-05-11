@@ -11,11 +11,14 @@ TEMP_FEAT_NAMES = ['St', 'Sp', 'Stpm', 'Stpp']
 
 
 class Gallat(nn.Module):
-    def __init__(self, feat_dim=7, query_dim=5, hidden_dim=16):
+    def __init__(self, feat_dim=7, query_dim=5, hidden_dim=16, predict_G=False):
         super(Gallat, self).__init__()
         self.feat_dim = feat_dim
         self.query_dim = query_dim
         self.hidden_dim = hidden_dim
+
+        self.predict_G = predict_G
+
         self.spat_embed_dim = 4 * hidden_dim    # Embedding dimension after spatial feature extraction
         self.temp_embed_dim = 4 * hidden_dim    # Embedding dimension after temporal feature extraction
 
@@ -26,7 +29,7 @@ class Gallat(nn.Module):
         self.tempAttLayer = TempAttLayer(query_dim=self.query_dim, embed_dim=self.spat_embed_dim, rec_merge='sum', comb_merge='sum')
 
         # Transferring Attention Layer
-        self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim, activate_function_method='sigmoid')
+        self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim, activate_function_method='sigmoid', predict_G=self.predict_G)
 
     def forward(self, record, query):
         # Extract spatial features
@@ -38,9 +41,12 @@ class Gallat(nn.Module):
         temp_embed = self.tempAttLayer(query, spat_embed_dict)
 
         # Transferring features to perform predictions
-        demands, Gtp1 = self.tranAttLayer(temp_embed)
-
-        return demands, Gtp1
+        if self.predict_G:
+            demands, Gtp1 = self.tranAttLayer(temp_embed)
+            return demands, Gtp1
+        else:
+            demands = self.tranAttLayer(temp_embed)
+            return demands
 
 
 if __name__ == '__main__':

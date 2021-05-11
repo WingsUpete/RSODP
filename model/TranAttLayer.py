@@ -5,9 +5,10 @@ import torch.nn.functional as F
 
 
 class TranAttLayer(nn.Module):
-    def __init__(self, embed_dim, activate_function_method='sigmoid'):
+    def __init__(self, embed_dim, activate_function_method='sigmoid', predict_G=False):
         super(TranAttLayer, self).__init__()
         self.embed_dim = embed_dim
+        self.predict_G = predict_G
 
         # Demand Prediction Linear Layer + Activation
         self.demand_fc = nn.Linear(self.embed_dim, 1, bias=True)
@@ -19,21 +20,23 @@ class TranAttLayer(nn.Module):
             self.activate_function = nn.Sigmoid()
             gain_str = 'sigmoid'
 
-        # Shared Weight W_a for AttentionNet
-        self.Wa = nn.Linear(self.embed_dim, self.embed_dim, bias=False)
-        # AttentionNet outer linear layer
-        self.att_out_fc = nn.Linear(2 * self.embed_dim, 1, bias=False)
+        if self.predict_G:
+            # Shared Weight W_a for AttentionNet
+            self.Wa = nn.Linear(self.embed_dim, self.embed_dim, bias=False)
+            # AttentionNet outer linear layer
+            self.att_out_fc = nn.Linear(2 * self.embed_dim, 1, bias=False)
 
         self.reset_parameters(nonlinearity='sigmoid')
 
     def reset_parameters(self, nonlinearity):
         gain = nn.init.calculate_gain(nonlinearity)
         nn.init.xavier_normal_(self.demand_fc.weight, gain=gain)
-        # Attention
-        gain = nn.init.calculate_gain('relu')
-        # gain = nn.init.calculate_gain('leaky_relu', 0.2)  # TODO: gain - leaky_relu with negative_slope=0.2
-        nn.init.xavier_normal_(self.Wa.weight, gain=gain)
-        nn.init.xavier_normal_(self.att_out_fc.weight, gain=gain)
+        if self.predict_G:
+            # Attention
+            gain = nn.init.calculate_gain('relu')
+            # gain = nn.init.calculate_gain('leaky_relu', 0.2)  # TODO: gain - leaky_relu with negative_slope=0.2
+            nn.init.xavier_normal_(self.Wa.weight, gain=gain)
+            nn.init.xavier_normal_(self.att_out_fc.weight, gain=gain)
 
     def predict_request_graph_attention(self, embed_feat_sample):
         num_nodes = embed_feat_sample.shape[-2]
@@ -66,7 +69,9 @@ class TranAttLayer(nn.Module):
         demands = self.activate_function(demands)
         demands = demands.reshape(-1, num_nodes)
 
-        # Predict Request Graph
-        req_gs = self.predict_request_graphs(embed_feat, demands)
-
-        return demands, req_gs
+        if self.predict_G:
+            # Predict Request Graph
+            req_gs = self.predict_request_graphs(embed_feat, demands)
+            return demands, req_gs
+        else:
+            return demands

@@ -27,6 +27,8 @@ TEMP_FEAT_NAMES = ['St', 'Sp', 'Stpm', 'Stpp']
 D_PERCENTAGE_DEFAULT = 0.8
 G_PERCENTAGE_DEFAULT = 0.2
 
+PRETRAIN_DEFAULT = 0
+
 # Debug
 DEBUG = True
 

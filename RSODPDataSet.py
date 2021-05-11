@@ -132,7 +132,7 @@ def testSamplingSpeed(dataset: DGLDataset, batch_size: int, shuffle: bool, tag: 
     dataloader = GraphDataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
     time0 = time.time()
     for i, batch in enumerate(dataloader):
-        record, query, target = batch['record'], batch['query'], batch['target']
+        record, query, target_G, target_D = batch['record'], batch['query'], batch['target_G'], batch['target_D']
         sys.stdout.write('\r{} Set - Batch No. {}/{} with time used(s): {}'.format(tag, i+1, len(dataloader), time.time() - time0))
         sys.stdout.flush()
         if i == 0:

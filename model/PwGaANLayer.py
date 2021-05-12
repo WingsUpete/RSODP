@@ -66,8 +66,6 @@ class PwGaANLayer(nn.Module):
             gFCVal = self.gate_fc_l(nodes.data['v']) + self.gate_fc_m(maxFeat) + self.gate_fc_r(meanFeat)
             gVal = torch.sigmoid(gFCVal)
             h = gVal * h
-            test1 = gFCVal.detach().numpy()
-            test2 = gVal.detach().numpy()
 
         return {'h': h}
 
@@ -100,4 +98,4 @@ class MultiHeadPwGaANLayer(nn.Module):
         if self.merge == 'cat':
             return torch.cat(head_outs, dim=1)
         else:
-            return torch.mean(torch.stack(head_outs))
+            return torch.mean(sum(head_outs) / len(head_outs))

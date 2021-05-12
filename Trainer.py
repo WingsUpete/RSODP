@@ -3,16 +3,14 @@ import sys
 import argparse
 import time
 
-import numpy as np
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.autograd.profiler as profiler
 
 stderr = sys.stderr
 sys.stderr = open(os.devnull, 'w')
 import dgl
-from dgl.data import DGLDataset
 from dgl.dataloading import GraphDataLoader
 sys.stderr.close()
 sys.stderr = stderr
@@ -43,7 +41,7 @@ def batch2device(record: dict, query: torch.Tensor, target_G: torch.Tensor, targ
 def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Config.MAX_EPOCHS_DEFAULT,
           eval_freq=Config.EVAL_FREQ_DEFAULT, opt=Config.OPTIMIZER_DEFAULT, num_workers=Config.WORKERS_DEFAULT,
           use_gpu=True, data_dir=Config.DATA_DIR_DEFAULT, logr=Logger(activate=False), model=Config.NETWORK_DEFAULT,
-          model_dir=Config.MODEL_DIR_DEFAULT, pretrain=False):
+          model_dir=Config.MODEL_DIR_DEFAULT, pretrain=False, metrics_threshold=Config.METRICS_THRESHOLD_DEFAULT):
     # Load DataSet
     logr.log('> Loading DataSet from {}\n'.format(data_dir))
     dataset = RSODPDataSet(data_dir, his_rec_num=Config.HISTORICAL_RECORDS_NUM_DEFAULT, time_slot_endurance=Config.TIME_SLOT_ENDURANCE_DEFAULT)
@@ -79,6 +77,9 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     if not os.path.isdir(model_dir):
         os.mkdir(model_dir)
 
+    # Metrics
+    metrics_threshold_val = metrics_threshold.item()
+
     # Summarize Info
     logr.log('\nlearning_rate = {}, epochs = {}, num_workers = {}\n'.format(lr, ep, num_workers))
     logr.log('eval_freq = {}, batch_size = {}, optimizer = {}\n'.format(eval_freq, bs, opt))
@@ -93,6 +94,9 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
         # train one round
         net.train()
         train_loss = 0
+        train_rmse = 0
+        train_mape = 0
+        train_mae = 0
         time_start_train = time.time()
         for i, batch in enumerate(trainloader):
             record, query, target_G, target_D = batch['record'], batch['query'], batch['target_G'], batch['target_D']
@@ -103,48 +107,122 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
             torch.nn.utils.clip_grad_norm_(net.parameters(), max_norm=Config.MAX_NORM_DEFAULT)
 
             optimizer.zero_grad()
-            if pretrain:
-                res_D = net(record, query)
-                loss = criterion_D(res_D, target_D)
-            else:
-                res_D, res_G = net(record, query)
-                loss = criterion_D(res_D, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G) * Config.G_PERCENTAGE_DEFAULT
-            loss.backward()
-            optimizer.step()
+            with profiler.profile(profile_memory=True, use_cuda=True) as prof:
+                with profiler.record_function('model_inference'):
+                    res_D, res_G = net(record, query)   # if pretrain, res_G = None
+                    loss = criterion_D(res_D, target_D) if pretrain else (criterion_D(res_D, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G) * Config.G_PERCENTAGE_DEFAULT)
 
-            # Analysis
-            train_loss += loss.item()
-        train_loss /= len(trainloader)
-        time_end_train = time.time()
-        total_train_time = (time_end_train - time_start_train)
-        train_time_per_sample = total_train_time / len(dataset.train_set)
-        logr.log('Training Round %d: loss = %.4f, time_cost = %.4f sec (%.4f sec per sample)\n' % (epoch_i, train_loss, total_train_time, train_time_per_sample))
+            logr.log(prof.key_averages().table(sort_by="cuda_time_total"))
 
-        # Evaluate Frequency on validation set
-        if (epoch_i + 1) % eval_freq == 0:
-            net.eval()
-            val_loss_total = 0
-            with torch.no_grad():
-                for j, val_batch in enumerate(validloader):
-                    val_record, val_query, val_target_G, val_target_D = val_batch['record'], val_batch['query'], val_batch['target_G'], val_batch['target_D']
-                    if device:
-                        val_record, val_query, al_target_G, val_target_D = batch2device(val_record, val_query, val_target_G, val_target_D, device)
+            # loss.backward()
+            # optimizer.step()
+            #
+            # # Analysis
+            # with torch.no_grad():
+            #     train_loss += loss.item()
+            #     train_rmse += RMSE(res_D, target_D, metrics_threshold).item() if pretrain else torch.mean(RMSE(res_D, target_D, metrics_threshold), RMSE(res_G, target_G, metrics_threshold)).item()
+            #     train_mape += MAPE(res_D, target_D, metrics_threshold).item() if pretrain else torch.mean(MAPE(res_D, target_D, metrics_threshold), MAPE(res_G, target_G, metrics_threshold)).item()
+            #     train_mae += MAE(res_D, target_D, metrics_threshold).item() if pretrain else torch.mean(MAE(res_D, target_D, metrics_threshold), MAE(res_G, target_G, metrics_threshold)).item()
 
-                    if pretrain:
-                        val_res_D = net(val_record, val_query)
-                        val_loss = criterion_D(val_res_D, val_target_D)
-                    else:
-                        val_res_D, val_res_G = net(val_record, val_query)
-                        val_loss = criterion_D(val_res_D, val_target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(val_res_G, val_target_G) * Config.G_PERCENTAGE_DEFAULT
-                    val_loss_total += val_loss.item()
-                val_loss_total /= len(validloader)
-                logr.log('!!! Validation : loss = %.4f\n' % val_loss_total)
+            if i == 0:    # DEBUG
+                break
 
-                if val_loss_total < min_eval_loss:
-                    min_eval_loss = val_loss_total
-                    model_name = os.path.join(model_dir, '{}.pth'.format(logr.time_tag))
-                    torch.save(net, model_name)
-                    logr.log('Model: {} has been saved since it achieves smaller loss.\n'.format(model_name))
+        # # Analysis after one training round in the epoch
+        # train_loss /= len(trainloader)
+        # train_rmse /= len(trainloader)
+        # train_mape /= len(trainloader)
+        # train_mae /= len(trainloader)
+        # time_end_train = time.time()
+        # total_train_time = (time_end_train - time_start_train)
+        # train_time_per_sample = total_train_time / len(dataset.train_set)
+        # logr.log('Training Round %d: loss = %.4f, time_cost = %.4f sec (%.4f sec per sample), RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' % (epoch_i, train_loss, total_train_time, train_time_per_sample, metrics_threshold_val, train_rmse, metrics_threshold_val, train_mape, metrics_threshold_val, train_mae))
+        #
+        # # eval_freq: Evaluate on validation set
+        # if (epoch_i + 1) % eval_freq == 0:
+        #     net.eval()
+        #     val_loss_total = 0
+        #     val_rmse = 0
+        #     val_mape = 0
+        #     val_mae = 0
+        #     if device.type == 'cuda':
+        #         torch.cuda.empty_cache()
+        #     with torch.no_grad():
+        #         for j, val_batch in enumerate(validloader):
+        #             val_record, val_query, val_target_G, val_target_D = val_batch['record'], val_batch['query'], val_batch['target_G'], val_batch['target_D']
+        #             if device:
+        #                 val_record, val_query, al_target_G, val_target_D = batch2device(val_record, val_query, val_target_G, val_target_D, device)
+        #
+        #             val_res_D, val_res_G = net(val_record, val_query)
+        #             val_loss = criterion_D(val_res_D, val_target_D) if pretrain else (criterion_D(val_res_D, val_target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(val_res_G, val_target_G) * Config.G_PERCENTAGE_DEFAULT)
+        #
+        #             val_loss_total += val_loss.item()
+        #             val_rmse += torch.mean(RMSE(val_res_D, val_target_D, metrics_threshold), RMSE(val_res_G, val_target_G, metrics_threshold)).item()
+        #             val_mape += torch.mean(MAPE(val_res_D, val_target_D, metrics_threshold), MAPE(val_res_G, val_target_G, metrics_threshold)).item()
+        #             val_mae += torch.mean(MAE(val_res_D, val_target_D, metrics_threshold), MAE(val_res_G, val_target_G, metrics_threshold)).item()
+        #
+        #         val_loss_total /= len(validloader)
+        #         val_rmse /= len(validloader)
+        #         val_mape /= len(validloader)
+        #         val_mae /= len(validloader)
+        #         logr.log('!!! Validation : loss = %.4f, RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' % (val_loss_total, metrics_threshold_val, val_rmse, metrics_threshold_val, val_mape, metrics_threshold_val, val_mae))
+        #
+        #         if val_loss_total < min_eval_loss:
+        #             min_eval_loss = val_loss_total
+        #             model_name = os.path.join(model_dir, '{}.pth'.format(logr.time_tag))
+        #             torch.save(net, model_name)
+        #             logr.log('Model: {} has been saved since it achieves smaller loss.\n'.format(model_name))
+
+        if epoch_i == 0:    # break
+            break
+
+
+def filter_with_threshold(x: torch.Tensor, threshold: torch.Tensor):
+    """
+    Filter out values below the threshold (they will become the threshold)
+    :param x: a tensor
+    :param threshold: single-value tensor containing the threshold
+    :return: filtered tensor
+    """
+    return torch.max(x, threshold)
+
+
+def RMSE(y_pred: torch.Tensor, y_true: torch.Tensor, threshold=Config.ZERO_TENSOR):
+    """
+    RMSE (Root Mean Squared Error)
+    :param y_pred: prediction tensor
+    :param y_true: target tensor
+    :param threshold: single-value tensor - only values not below the threshold are considered (if threshold=3, result is RMSE-3)
+    :return: RMSE-threshold
+    """
+    y_pred_filter = filter_with_threshold(y_pred, threshold)
+    y_true_filter = filter_with_threshold(y_true, threshold)
+    return torch.sqrt(torch.mean(torch.pow((y_pred_filter - y_true_filter), 2)))
+
+
+def MAE(y_pred, y_true, threshold=Config.ZERO_TENSOR):
+    """
+    MAE (Mean Absolute Error)
+    :param y_pred: prediction tensor
+    :param y_true: target tensor
+    :param threshold: single-value tensor - only values not below the threshold are considered (if threshold=3, result is MAE-3)
+    :return: MAE-threshold
+    """
+    y_pred_filter = filter_with_threshold(y_pred, threshold)
+    y_true_filter = filter_with_threshold(y_true, threshold)
+    return torch.mean(torch.abs(y_pred_filter - y_true_filter))
+
+
+def MAPE(y_pred, y_true, threshold=Config.ZERO_TENSOR):
+    """
+    MAPE (Mean Absolute Percentage Error)
+    :param y_pred: prediction tensor
+    :param y_true: target tensor
+    :param threshold: single-value tensor - only values not below the threshold are considered (if threshold=3, result is MAPE-3)
+    :return: MAPE-threshold
+    """
+    y_pred_filter = filter_with_threshold(y_pred, threshold)
+    y_true_filter = filter_with_threshold(y_true, threshold)
+    return torch.mean(torch.abs((y_pred_filter - y_true_filter)/(y_pred_filter + 1)))
 
 
 def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT, use_gpu=True,
@@ -179,6 +257,7 @@ if __name__ == '__main__':
     parser.add_argument('-e', '--eval', type=str, default=Config.EVAL_DEFAULT, help='Specify the location of saved network to be loaded for evaluation, default = {}'.format(Config.EVAL_DEFAULT))
     parser.add_argument('-md', '--model_dir', type=str, default=Config.MODEL_DIR_DEFAULT, help='Specify the location of network to be saved, default = {}'.format(Config.MODEL_DIR_DEFAULT))
     parser.add_argument('-pre', '--pretrain', type=int, default=Config.PRETRAIN_DEFAULT, help='Specify whether to pretrain the model (only predict demands), default = {}'.format(Config.PRETRAIN_DEFAULT))
+    parser.add_argument('-mt', '--metrics_threshold', type=int, default=Config.METRICS_THRESHOLD_DEFAULT, help='Specify the metrics threshold, default = {}'.format(Config.METRICS_THRESHOLD_DEFAULT))
 
     FLAGS, unparsed = parser.parse_known_args()
 
@@ -190,7 +269,8 @@ if __name__ == '__main__':
         train(lr=FLAGS.learning_rate, bs=FLAGS.batch_size, ep=FLAGS.max_epochs,
               eval_freq=FLAGS.eval_freq, opt=FLAGS.optimizer, num_workers=FLAGS.cores,
               use_gpu=(FLAGS.gpu == 1), data_dir=FLAGS.data_dir, logr=logger, model=FLAGS.network,
-              model_dir=FLAGS.model_dir, pretrain=(FLAGS.pretrain == 1))
+              model_dir=FLAGS.model_dir, pretrain=(FLAGS.pretrain == 1),
+              metrics_threshold=torch.Tensor([FLAGS.metrics_threshold]))
         logger.close()
     elif working_mode == 'eval':
         eval_file = FLAGS.eval

@@ -79,6 +79,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
 
     # Metrics
     metrics_threshold_val = metrics_threshold.item()
+    if device:
+        metrics_threshold = metrics_threshold.to(device)
 
     # Summarize Info
     logr.log('\nlearning_rate = {}, epochs = {}, num_workers = {}\n'.format(lr, ep, num_workers))
@@ -124,9 +126,9 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
             # Analysis
             with torch.no_grad():
                 train_loss += loss.item()
-                train_rmse += RMSE(res_D, target_D, metrics_threshold).item() if pretrain else torch.mean(RMSE(res_D, target_D, metrics_threshold), RMSE(res_G, target_G, metrics_threshold)).item()
-                train_mape += MAPE(res_D, target_D, metrics_threshold).item() if pretrain else torch.mean(MAPE(res_D, target_D, metrics_threshold), MAPE(res_G, target_G, metrics_threshold)).item()
-                train_mae += MAE(res_D, target_D, metrics_threshold).item() if pretrain else torch.mean(MAE(res_D, target_D, metrics_threshold), MAE(res_G, target_G, metrics_threshold)).item()
+                train_rmse += RMSE(res_D, target_D, metrics_threshold).item() if pretrain else ((RMSE(res_D, target_D, metrics_threshold) + RMSE(res_G, target_G, metrics_threshold)) / 2).item()
+                train_mape += MAPE(res_D, target_D, metrics_threshold).item() if pretrain else ((MAPE(res_D, target_D, metrics_threshold) + MAPE(res_G, target_G, metrics_threshold)) / 2).item()
+                train_mae += MAE(res_D, target_D, metrics_threshold).item() if pretrain else ((MAE(res_D, target_D, metrics_threshold) + MAE(res_G, target_G, metrics_threshold)) / 2).item()
 
             if i == 0:    # DEBUG
                 break
@@ -160,9 +162,9 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                     val_loss = criterion_D(val_res_D, val_target_D) if pretrain else (criterion_D(val_res_D, val_target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(val_res_G, val_target_G) * Config.G_PERCENTAGE_DEFAULT)
 
                     val_loss_total += val_loss.item()
-                    val_rmse += torch.mean(RMSE(val_res_D, val_target_D, metrics_threshold), RMSE(val_res_G, val_target_G, metrics_threshold)).item()
-                    val_mape += torch.mean(MAPE(val_res_D, val_target_D, metrics_threshold), MAPE(val_res_G, val_target_G, metrics_threshold)).item()
-                    val_mae += torch.mean(MAE(val_res_D, val_target_D, metrics_threshold), MAE(val_res_G, val_target_G, metrics_threshold)).item()
+                    val_rmse += ((RMSE(val_res_D, val_target_D, metrics_threshold) + RMSE(val_res_G, val_target_G, metrics_threshold)) / 2).item()
+                    val_mape += ((MAPE(val_res_D, val_target_D, metrics_threshold) + MAPE(val_res_G, val_target_G, metrics_threshold)) / 2).item()
+                    val_mae += ((MAE(val_res_D, val_target_D, metrics_threshold) + MAE(val_res_G, val_target_G, metrics_threshold)) / 2).item()
 
                 val_loss_total /= len(validloader)
                 val_rmse /= len(validloader)

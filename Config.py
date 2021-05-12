@@ -1,3 +1,5 @@
+import torch
+
 # Basic
 LEARNING_RATE_DEFAULT = 1e-3    # 0.001
 MAX_EPOCHS_DEFAULT = 200
@@ -32,3 +34,9 @@ PRETRAIN_DEFAULT = 0
 # Debug
 DEBUG = True
 
+# Single Value Tensor for Metrics Threshold (0, 3, 5)
+ZERO_TENSOR = torch.Tensor([0])
+METRICS_THRESHOLD_DEFAULT = ZERO_TENSOR
+
+# Customize: DIY
+EVAL_METRICS_THRESHOLD_SET = [0, 3, 5]

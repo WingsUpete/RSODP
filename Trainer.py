@@ -130,8 +130,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                 train_mape += MAPE(res_D, target_D, metrics_threshold).item() if pretrain else ((MAPE(res_D, target_D, metrics_threshold) + MAPE(res_G, target_G, metrics_threshold)) / 2).item()
                 train_mae += MAE(res_D, target_D, metrics_threshold).item() if pretrain else ((MAE(res_D, target_D, metrics_threshold) + MAE(res_G, target_G, metrics_threshold)) / 2).item()
 
-            if i == 0:    # DEBUG
-                break
+            # if i == 0:    # DEBUG
+            #     break
 
         # Analysis after one training round in the epoch
         train_loss /= len(trainloader)

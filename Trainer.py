@@ -107,70 +107,74 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
             torch.nn.utils.clip_grad_norm_(net.parameters(), max_norm=Config.MAX_NORM_DEFAULT)
 
             optimizer.zero_grad()
-            with profiler.profile(profile_memory=True, use_cuda=True) as prof:
-                with profiler.record_function('model_inference'):
-                    res_D, res_G = net(record, query)   # if pretrain, res_G = None
-                    loss = criterion_D(res_D, target_D) if pretrain else (criterion_D(res_D, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G) * Config.G_PERCENTAGE_DEFAULT)
 
-            logr.log(prof.key_averages().table(sort_by="cuda_time_total"))
+            # with profiler.profile(profile_memory=True, use_cuda=True) as prof:
+            #     with profiler.record_function('model_inference'):
+            #         res_D, res_G = net(record, query)   # if pretrain, res_G = None
+            #         loss = criterion_D(res_D, target_D) if pretrain else (criterion_D(res_D, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G) * Config.G_PERCENTAGE_DEFAULT)
 
-            # loss.backward()
-            # optimizer.step()
-            #
-            # # Analysis
-            # with torch.no_grad():
-            #     train_loss += loss.item()
-            #     train_rmse += RMSE(res_D, target_D, metrics_threshold).item() if pretrain else torch.mean(RMSE(res_D, target_D, metrics_threshold), RMSE(res_G, target_G, metrics_threshold)).item()
-            #     train_mape += MAPE(res_D, target_D, metrics_threshold).item() if pretrain else torch.mean(MAPE(res_D, target_D, metrics_threshold), MAPE(res_G, target_G, metrics_threshold)).item()
-            #     train_mae += MAE(res_D, target_D, metrics_threshold).item() if pretrain else torch.mean(MAE(res_D, target_D, metrics_threshold), MAE(res_G, target_G, metrics_threshold)).item()
+            res_D, res_G = net(record, query)  # if pretrain, res_G = None
+            loss = criterion_D(res_D, target_D) if pretrain else (criterion_D(res_D, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G) * Config.G_PERCENTAGE_DEFAULT)
+
+            # logr.log(prof.key_averages().table(sort_by="cuda_time_total"))
+
+            loss.backward()
+            optimizer.step()
+
+            # Analysis
+            with torch.no_grad():
+                train_loss += loss.item()
+                train_rmse += RMSE(res_D, target_D, metrics_threshold).item() if pretrain else torch.mean(RMSE(res_D, target_D, metrics_threshold), RMSE(res_G, target_G, metrics_threshold)).item()
+                train_mape += MAPE(res_D, target_D, metrics_threshold).item() if pretrain else torch.mean(MAPE(res_D, target_D, metrics_threshold), MAPE(res_G, target_G, metrics_threshold)).item()
+                train_mae += MAE(res_D, target_D, metrics_threshold).item() if pretrain else torch.mean(MAE(res_D, target_D, metrics_threshold), MAE(res_G, target_G, metrics_threshold)).item()
 
             if i == 0:    # DEBUG
                 break
 
-        # # Analysis after one training round in the epoch
-        # train_loss /= len(trainloader)
-        # train_rmse /= len(trainloader)
-        # train_mape /= len(trainloader)
-        # train_mae /= len(trainloader)
-        # time_end_train = time.time()
-        # total_train_time = (time_end_train - time_start_train)
-        # train_time_per_sample = total_train_time / len(dataset.train_set)
-        # logr.log('Training Round %d: loss = %.4f, time_cost = %.4f sec (%.4f sec per sample), RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' % (epoch_i, train_loss, total_train_time, train_time_per_sample, metrics_threshold_val, train_rmse, metrics_threshold_val, train_mape, metrics_threshold_val, train_mae))
-        #
-        # # eval_freq: Evaluate on validation set
-        # if (epoch_i + 1) % eval_freq == 0:
-        #     net.eval()
-        #     val_loss_total = 0
-        #     val_rmse = 0
-        #     val_mape = 0
-        #     val_mae = 0
-        #     if device.type == 'cuda':
-        #         torch.cuda.empty_cache()
-        #     with torch.no_grad():
-        #         for j, val_batch in enumerate(validloader):
-        #             val_record, val_query, val_target_G, val_target_D = val_batch['record'], val_batch['query'], val_batch['target_G'], val_batch['target_D']
-        #             if device:
-        #                 val_record, val_query, al_target_G, val_target_D = batch2device(val_record, val_query, val_target_G, val_target_D, device)
-        #
-        #             val_res_D, val_res_G = net(val_record, val_query)
-        #             val_loss = criterion_D(val_res_D, val_target_D) if pretrain else (criterion_D(val_res_D, val_target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(val_res_G, val_target_G) * Config.G_PERCENTAGE_DEFAULT)
-        #
-        #             val_loss_total += val_loss.item()
-        #             val_rmse += torch.mean(RMSE(val_res_D, val_target_D, metrics_threshold), RMSE(val_res_G, val_target_G, metrics_threshold)).item()
-        #             val_mape += torch.mean(MAPE(val_res_D, val_target_D, metrics_threshold), MAPE(val_res_G, val_target_G, metrics_threshold)).item()
-        #             val_mae += torch.mean(MAE(val_res_D, val_target_D, metrics_threshold), MAE(val_res_G, val_target_G, metrics_threshold)).item()
-        #
-        #         val_loss_total /= len(validloader)
-        #         val_rmse /= len(validloader)
-        #         val_mape /= len(validloader)
-        #         val_mae /= len(validloader)
-        #         logr.log('!!! Validation : loss = %.4f, RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' % (val_loss_total, metrics_threshold_val, val_rmse, metrics_threshold_val, val_mape, metrics_threshold_val, val_mae))
-        #
-        #         if val_loss_total < min_eval_loss:
-        #             min_eval_loss = val_loss_total
-        #             model_name = os.path.join(model_dir, '{}.pth'.format(logr.time_tag))
-        #             torch.save(net, model_name)
-        #             logr.log('Model: {} has been saved since it achieves smaller loss.\n'.format(model_name))
+        # Analysis after one training round in the epoch
+        train_loss /= len(trainloader)
+        train_rmse /= len(trainloader)
+        train_mape /= len(trainloader)
+        train_mae /= len(trainloader)
+        time_end_train = time.time()
+        total_train_time = (time_end_train - time_start_train)
+        train_time_per_sample = total_train_time / len(dataset.train_set)
+        logr.log('Training Round %d: loss = %.4f, time_cost = %.4f sec (%.4f sec per sample), RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' % (epoch_i, train_loss, total_train_time, train_time_per_sample, metrics_threshold_val, train_rmse, metrics_threshold_val, train_mape, metrics_threshold_val, train_mae))
+
+        # eval_freq: Evaluate on validation set
+        if (epoch_i + 1) % eval_freq == 0:
+            net.eval()
+            val_loss_total = 0
+            val_rmse = 0
+            val_mape = 0
+            val_mae = 0
+            if device.type == 'cuda':
+                torch.cuda.empty_cache()
+            with torch.no_grad():
+                for j, val_batch in enumerate(validloader):
+                    val_record, val_query, val_target_G, val_target_D = val_batch['record'], val_batch['query'], val_batch['target_G'], val_batch['target_D']
+                    if device:
+                        val_record, val_query, al_target_G, val_target_D = batch2device(val_record, val_query, val_target_G, val_target_D, device)
+
+                    val_res_D, val_res_G = net(val_record, val_query)
+                    val_loss = criterion_D(val_res_D, val_target_D) if pretrain else (criterion_D(val_res_D, val_target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(val_res_G, val_target_G) * Config.G_PERCENTAGE_DEFAULT)
+
+                    val_loss_total += val_loss.item()
+                    val_rmse += torch.mean(RMSE(val_res_D, val_target_D, metrics_threshold), RMSE(val_res_G, val_target_G, metrics_threshold)).item()
+                    val_mape += torch.mean(MAPE(val_res_D, val_target_D, metrics_threshold), MAPE(val_res_G, val_target_G, metrics_threshold)).item()
+                    val_mae += torch.mean(MAE(val_res_D, val_target_D, metrics_threshold), MAE(val_res_G, val_target_G, metrics_threshold)).item()
+
+                val_loss_total /= len(validloader)
+                val_rmse /= len(validloader)
+                val_mape /= len(validloader)
+                val_mae /= len(validloader)
+                logr.log('!!! Validation : loss = %.4f, RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' % (val_loss_total, metrics_threshold_val, val_rmse, metrics_threshold_val, val_mape, metrics_threshold_val, val_mae))
+
+                if val_loss_total < min_eval_loss:
+                    min_eval_loss = val_loss_total
+                    model_name = os.path.join(model_dir, '{}.pth'.format(logr.time_tag))
+                    torch.save(net, model_name)
+                    logr.log('Model: {} has been saved since it achieves smaller loss.\n'.format(model_name))
 
         if epoch_i == 0:    # break
             break

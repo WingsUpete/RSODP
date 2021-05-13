@@ -119,14 +119,10 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
             #         loss = criterion_D(res_D, target_D) if pretrain else (criterion_D(res_D, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G) * Config.G_PERCENTAGE_DEFAULT)
             # logr.log(prof.key_averages().table(sort_by="cuda_time_total"))
 
-            # time_tf_0 = time.time()
             res_D, res_G = net(record, query, predict_G=predict_G)  # if pretrain, res_G = None
             loss = criterion_D(res_D, target_D) if pretrain else (criterion_D(res_D, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G) * Config.G_PERCENTAGE_DEFAULT)
-            # logr.log('Train Forward Time (Including Criterion) = %.4f sec\n' % (time.time() - time_tf_0))
 
-            # time_tb_0 = time.time()
             loss.backward()
-            # logr.log('Train Backward Time = %.4f sec\n' % (time.time() - time_tb_0))
             optimizer.step()
 
             # Analysis

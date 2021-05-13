@@ -186,7 +186,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
         # if epoch_i == 0:    # break
         #     break
 
-
+# TODO: put these methods into utils
 def filter_with_threshold(x: torch.Tensor, threshold: torch.Tensor):
     """
     Filter out values below the threshold (they will become the threshold)
@@ -245,7 +245,49 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
         2. Re-evaluate on the test set
         The evaluation metrics include RMSE, MAPE, MAE
     """
-    pass
+    # Load Model
+    logr.log('Loading {}\n'.format(model_name))
+    net = torch.load(model_name)
+
+    # CUDA if needed
+    device = torch.device('cuda:0' if (use_gpu and torch.cuda.is_available()) else 'cpu')
+    logr.log('> device: {}\n'.format(device))
+
+    if device:
+        net.to(device)
+        logr.log('> Model sent to {}\n'.format(device))
+
+    # Load DataSet
+    logr.log('> Loading DataSet from {}\n'.format(data_dir))
+    dataset = RSODPDataSet(data_dir, his_rec_num=Config.HISTORICAL_RECORDS_NUM_DEFAULT,
+                           time_slot_endurance=Config.TIME_SLOT_ENDURANCE_DEFAULT, total_H=total_H, start_at=start_H)
+    validloader = GraphDataLoader(dataset.valid_set, batch_size=bs, shuffle=False, num_workers=num_workers)
+    testloader = GraphDataLoader(dataset.test_set, batch_size=bs, shuffle=False, num_workers=num_workers)
+    logr.log('> Validation batches: {}, Test batches: {}\n'.format(len(validloader), len(testloader)))
+
+    # # 1.
+    # net.eval()
+    # val_rmse = 0
+    # val_mape = 0
+    # val_mae = 0
+    # if device.type == 'cuda':
+    #     torch.cuda.empty_cache()
+    # with torch.no_grad():
+    #     for j, val_batch in enumerate(validloader):
+    #         val_record, val_query, val_target_G, val_target_D = val_batch['record'], val_batch['query'], val_batch['target_G'], val_batch['target_D']
+    #         if device:
+    #             val_record, val_query, al_target_G, val_target_D = batch2device(val_record, val_query, val_target_G, val_target_D, device)
+    #
+    #         val_res_D, val_res_G = net(val_record, val_query)
+    #
+    #         val_rmse += ((RMSE(val_res_D, val_target_D, metrics_threshold) + RMSE(val_res_G, val_target_G, metrics_threshold)) / 2).item()
+    #         val_mape += ((MAPE(val_res_D, val_target_D, metrics_threshold) + MAPE(val_res_G, val_target_G, metrics_threshold)) / 2).item()
+    #         val_mae += ((MAE(val_res_D, val_target_D, metrics_threshold) + MAE(val_res_G, val_target_G, metrics_threshold)) / 2).item()
+    #
+    #     val_rmse /= len(validloader)
+    #     val_mape /= len(validloader)
+    #     val_mae /= len(validloader)
+    #     logr.log('!!! Validation : loss = %.4f, RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' % (val_loss_total, metrics_threshold_val, val_rmse, metrics_threshold_val, val_mape, metrics_threshold_val, val_mae))
 
 
 if __name__ == '__main__':

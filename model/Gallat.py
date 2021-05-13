@@ -23,14 +23,14 @@ class Gallat(nn.Module):
 
         # Spatial Attention Layer
         self.spatAttLayer = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=1, gate=False)
-        self.spatActivation = nn.SELU()
+        self.spatActivation = nn.ReLU()
 
         # Temporal Attention Layer
         self.tempAttLayer = TempAttLayer(query_dim=self.query_dim, embed_dim=self.spat_embed_dim, rec_merge='sum', comb_merge='sum')
-        self.tempActivation = nn.SELU()
+        self.tempActivation = nn.ReLU()
 
         # Transferring Attention Layer
-        self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim, activate_function_method='selu')
+        self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim, activate_function_method='relu')
 
     def forward(self, record, query, predict_G=False):
         # Extract spatial features

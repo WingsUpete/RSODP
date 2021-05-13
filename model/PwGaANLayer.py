@@ -71,7 +71,7 @@ class PwGaANLayer(nn.Module):
             gVal = torch.sigmoid(gFCVal)
             h = gVal * h
 
-        return {'h': F.selu(h)}
+        return {'h': F.relu(h)}
 
     def forward(self, g: dgl.DGLGraph):
         with g.local_scope():

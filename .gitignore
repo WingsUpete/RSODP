@@ -8,6 +8,10 @@ desktop.ini
 log/
 **/*.log
 
+# Model
+model_save/
+**/*.pth
+
 # Python
 **/__pycache__
 

@@ -12,13 +12,11 @@ TEMP_FEAT_NAMES = ['St', 'Sp', 'Stpm', 'Stpp']
 
 
 class Gallat(nn.Module):
-    def __init__(self, feat_dim=7, query_dim=5, hidden_dim=16, predict_G=False):
+    def __init__(self, feat_dim=7, query_dim=5, hidden_dim=16):
         super(Gallat, self).__init__()
         self.feat_dim = feat_dim
         self.query_dim = query_dim
         self.hidden_dim = hidden_dim
-
-        self.predict_G = predict_G
 
         self.spat_embed_dim = 4 * hidden_dim    # Embedding dimension after spatial feature extraction
         self.temp_embed_dim = 4 * hidden_dim    # Embedding dimension after temporal feature extraction
@@ -32,7 +30,7 @@ class Gallat(nn.Module):
         # Transferring Attention Layer
         self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim, activate_function_method='sigmoid')
 
-    def forward(self, record, query):
+    def forward(self, record, query, predict_G=False):
         # Extract spatial features
         # time_start = time.time()
         spat_embed_dict = {}
@@ -47,7 +45,7 @@ class Gallat(nn.Module):
         # print('Temporal Layer: %.4f sec' % (time_temp - time_spat))
 
         # Transferring features to perform predictions
-        res = self.tranAttLayer(temp_embed, self.predict_G)
+        res = self.tranAttLayer(temp_embed, predict_G)
         # time_tran = time.time()
         # print('Transferring Layer: %.4f sec' % (time_tran - time_temp))
 

@@ -52,9 +52,10 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
 
     # Initialize the Model
     logr.log('> Initializing the Training Model: {}, Pretrain = {}\n'.format(model, pretrain))
-    net = Gallat(feat_dim=Config.FEAT_DIM_DEFAULT, query_dim=Config.QUERY_DIM_DEFAULT, hidden_dim=Config.HIDDEN_DIM_DEFAULT, predict_G=(not pretrain))
+    predict_G = (not pretrain)
+    net = Gallat(feat_dim=Config.FEAT_DIM_DEFAULT, query_dim=Config.QUERY_DIM_DEFAULT, hidden_dim=Config.HIDDEN_DIM_DEFAULT)
     if model == 'Gallat':
-        net = Gallat(feat_dim=Config.FEAT_DIM_DEFAULT, query_dim=Config.QUERY_DIM_DEFAULT, hidden_dim=Config.HIDDEN_DIM_DEFAULT, predict_G=(not pretrain))
+        net = Gallat(feat_dim=Config.FEAT_DIM_DEFAULT, query_dim=Config.QUERY_DIM_DEFAULT, hidden_dim=Config.HIDDEN_DIM_DEFAULT)
 
     # Select Optimizer
     logr.log('> Constructing the Optimizer: {}\n'.format(opt))
@@ -114,12 +115,12 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
 
             # with profiler.profile(profile_memory=True, use_cuda=True) as prof:
             #     with profiler.record_function('model_inference'):
-            #         res_D, res_G = net(record, query)   # if pretrain, res_G = None
+            #         res_D, res_G = net(record, query, predict_G=predict_G)   # if pretrain, res_G = None
             #         loss = criterion_D(res_D, target_D) if pretrain else (criterion_D(res_D, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G) * Config.G_PERCENTAGE_DEFAULT)
             # logr.log(prof.key_averages().table(sort_by="cuda_time_total"))
 
             # time_tf_0 = time.time()
-            res_D, res_G = net(record, query)  # if pretrain, res_G = None
+            res_D, res_G = net(record, query, predict_G=predict_G)  # if pretrain, res_G = None
             loss = criterion_D(res_D, target_D) if pretrain else (criterion_D(res_D, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G) * Config.G_PERCENTAGE_DEFAULT)
             # logr.log('Train Forward Time (Including Criterion) = %.4f sec\n' % (time.time() - time_tf_0))
 
@@ -161,9 +162,9 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                 for j, val_batch in enumerate(validloader):
                     val_record, val_query, val_target_G, val_target_D = val_batch['record'], val_batch['query'], val_batch['target_G'], val_batch['target_D']
                     if device:
-                        val_record, val_query, al_target_G, val_target_D = batch2device(val_record, val_query, val_target_G, val_target_D, device)
+                        val_record, val_query, val_target_G, val_target_D = batch2device(val_record, val_query, val_target_G, val_target_D, device)
 
-                    val_res_D, val_res_G = net(val_record, val_query)
+                    val_res_D, val_res_G = net(val_record, val_query, predict_G=True)
                     val_loss = criterion_D(val_res_D, val_target_D) if pretrain else (criterion_D(val_res_D, val_target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(val_res_G, val_target_G) * Config.G_PERCENTAGE_DEFAULT)
 
                     val_loss_total += val_loss.item()

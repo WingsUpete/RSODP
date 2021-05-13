@@ -28,7 +28,7 @@ class PwGaANLayer(nn.Module):
 
     def reset_parameters(self):
         """ Reinitialize learnable parameters. """
-        gain = nn.init.calculate_gain('leaky_relu', 0.2)
+        gain = nn.init.calculate_gain('leaky_relu')
         nn.init.xavier_normal_(self.Wa.weight, gain=gain)
         nn.init.xavier_normal_(self.att_out_fc_l.weight, gain=gain)
         nn.init.xavier_normal_(self.att_out_fc_r.weight, gain=gain)

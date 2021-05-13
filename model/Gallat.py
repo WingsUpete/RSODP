@@ -23,9 +23,11 @@ class Gallat(nn.Module):
 
         # Spatial Attention Layer
         self.spatAttLayer = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=1, gate=False)
+        self.spatActivation = nn.Tanh()
 
         # Temporal Attention Layer
         self.tempAttLayer = TempAttLayer(query_dim=self.query_dim, embed_dim=self.spat_embed_dim, rec_merge='sum', comb_merge='sum')
+        self.tempActivation = nn.Tanh()
 
         # Transferring Attention Layer
         self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim, activate_function_method='selu')
@@ -35,12 +37,12 @@ class Gallat(nn.Module):
         # time_start = time.time()
         spat_embed_dict = {}
         for temp_feat in TEMP_FEAT_NAMES:
-            spat_embed_dict[temp_feat] = [self.spatAttLayer(fg, bg, gg) for (fg, bg, gg) in record[temp_feat]]
+            spat_embed_dict[temp_feat] = [self.spatActivation(self.spatAttLayer(fg, bg, gg)) for (fg, bg, gg) in record[temp_feat]]
         # time_spat = time.time()
         # print('Spatial Layer: %.4f sec' % (time_spat - time_start))
 
         # Extract temporal features
-        temp_embed = self.tempAttLayer(query, spat_embed_dict)
+        temp_embed = self.tempActivation(self.tempAttLayer(query, spat_embed_dict))
         # time_temp = time.time()
         # print('Temporal Layer: %.4f sec' % (time_temp - time_spat))
 

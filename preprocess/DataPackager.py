@@ -180,40 +180,36 @@ def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_n
 
     # Get request matrix G
     request_matrix = np.zeros((len(grid_nodes), len(grid_nodes)))
-    nRequests = 0
     for split_i in range(len(df_split)):
         curData = df_split.iloc[split_i]
         srcRow, srcCol, srcID = inWhichGrid((curData['src lat'], curData['src lng']), grid_info)
         dstRow, dstCol, dstID = inWhichGrid((curData['dst lat'], curData['dst lng']), grid_info)
         request_matrix[srcID][dstID] += curData['volume']
-        nRequests += curData['volume']
     GDVQ['G'] = request_matrix.astype(np.float32)
 
     # Get Feature Matrix V
     feature_vectors = []
     query_feature_vectors = []
     inDs = np.sum(request_matrix, axis=0)  # Col-wise: Total number of nodes pointing to current node = In Degree
+    min_inDs = np.min(inDs)
+    norm_inDs = (inDs - min_inDs) / (np.max(inDs) - min_inDs)
     outDs = np.sum(request_matrix, axis=1)  # Row-wise: Total number of nodes current node points to = Out Degree
+    min_outDs = np.min(outDs)
+    norm_outDs = (outDs - min_outDs) / (np.max(outDs) - min_outDs)
     GDVQ['D'] = outDs.astype(np.float32)
 
     for vi in range(len(grid_nodes)):
         viRow, viCol = ID2Coord(vi, grid_info)
-        query_feature_vector = [
+        query_feature_vector = [1 if i == dayOfWeek else 0 for i in range(7)] + [
             viRow / grid_info['latGridNum'],
             viCol / grid_info['lngGridNum'],
             vi / grid_info['gridNum'],
-            torch.sigmoid(torch.Tensor([curH])).item(),
-            dayOfWeek / 7
+            torch.sigmoid(torch.Tensor([curH])).item()
         ]
         query_feature_vectors.append(query_feature_vector)
-        feature_vector = [
-            query_feature_vector[0],
-            query_feature_vector[1],
-            outDs[vi] / nRequests,
-            inDs[vi] / nRequests,
-            query_feature_vector[2],
-            query_feature_vector[3],
-            query_feature_vector[4]
+        feature_vector = query_feature_vector + [
+            norm_outDs[vi],
+            norm_inDs[vi]
         ]
         feature_vectors.append(feature_vector)
     feature_matrix = np.array(feature_vectors)

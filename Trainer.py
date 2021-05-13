@@ -47,6 +47,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     dataset = RSODPDataSet(data_dir, his_rec_num=Config.HISTORICAL_RECORDS_NUM_DEFAULT, time_slot_endurance=Config.TIME_SLOT_ENDURANCE_DEFAULT)
     trainloader = GraphDataLoader(dataset.train_set, batch_size=bs, shuffle=True, num_workers=num_workers)
     validloader = GraphDataLoader(dataset.valid_set, batch_size=bs, shuffle=False, num_workers=num_workers)
+    logr.log('> Training batches: {}, Validation batches: {}'.format(len(trainloader), len(validloader)))
 
     # Initialize the Model
     logr.log('> Initializing the Training Model: {}, Pretrain = {}\n'.format(model, pretrain))

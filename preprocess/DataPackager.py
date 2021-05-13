@@ -6,13 +6,19 @@ Package the data into a specified folder, which will contain:
 """
 import argparse
 import os
+import sys
 import math
 import json
 import numpy as np
 import pandas as pd
 import torch
-import dgl
 import multiprocessing
+
+stderr = sys.stderr
+sys.stderr = open(os.devnull, 'w')
+import dgl
+sys.stderr.close()
+sys.stderr = stderr
 
 EPSILON = 1e-12
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -174,11 +180,13 @@ def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_n
 
     # Get request matrix G
     request_matrix = np.zeros((len(grid_nodes), len(grid_nodes)))
+    nRequests = 0
     for split_i in range(len(df_split)):
         curData = df_split.iloc[split_i]
         srcRow, srcCol, srcID = inWhichGrid((curData['src lat'], curData['src lng']), grid_info)
         dstRow, dstCol, dstID = inWhichGrid((curData['dst lat'], curData['dst lng']), grid_info)
         request_matrix[srcID][dstID] += curData['volume']
+        nRequests += curData['volume']
     GDVQ['G'] = request_matrix.astype(np.float32)
 
     # Get Feature Matrix V
@@ -190,10 +198,24 @@ def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_n
 
     for vi in range(len(grid_nodes)):
         viRow, viCol = ID2Coord(vi, grid_info)
-        feature_vector = [viRow, viCol, outDs[vi], inDs[vi], vi, curH, dayOfWeek]
-        feature_vectors.append(feature_vector)
-        query_feature_vector = [viRow, viCol, vi, curH, dayOfWeek]
+        query_feature_vector = [
+            viRow / grid_info['latGridNum'],
+            viCol / grid_info['lngGridNum'],
+            vi / grid_info['gridNum'],
+            torch.sigmoid(torch.Tensor([curH])).item(),
+            dayOfWeek / 7
+        ]
         query_feature_vectors.append(query_feature_vector)
+        feature_vector = [
+            query_feature_vector[0],
+            query_feature_vector[1],
+            outDs[vi] / nRequests,
+            inDs[vi] / nRequests,
+            query_feature_vector[2],
+            query_feature_vector[3],
+            query_feature_vector[4]
+        ]
+        feature_vectors.append(feature_vector)
     feature_matrix = np.array(feature_vectors)
     query_feature_matrix = np.array(query_feature_vectors)
     GDVQ['V'] = feature_matrix.astype(np.float32)
@@ -283,6 +305,7 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_worke
 
         # Handle data
         pool.apply_async(handleRequestData, args=(i, totalH, folder, lowT, df_split, export_requests, grid_nodes, grid_info))
+        # handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_nodes, grid_info)    # DEBUG
 
         lowT += pd.Timedelta(hours=1)
         upT += pd.Timedelta(hours=1)
@@ -322,7 +345,7 @@ def ID2Coord(gridID, grid_info):
 if __name__ == '__main__':
     """
     Usage Example:
-        python DataPackager.py -d ny2016_0101to0331.csv --minLat 40.4944 --maxLat 40.9196 --minLng -74.2655 --maxLng -73.6957 --refGridH 2.5 --refGridW 2.5 -er 1 -od ../data/
+        python DataPackager.py -d ny2016_0101to0331.csv --minLat 40.4944 --maxLat 40.9196 --minLng -74.2655 --maxLng -73.6957 --refGridH 2.5 --refGridW 2.5 -er 1 -od ../data/ -c 10
     """
     # Command Line Arguments
     parser = argparse.ArgumentParser()

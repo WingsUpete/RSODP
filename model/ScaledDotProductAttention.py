@@ -35,7 +35,7 @@ class ScaledDotProductAttention(nn.Module):
         # Note that batch size is the first dimension, while the last two dimensions are the ones we care about.
         scores = torch.matmul(proj_Q, torch.transpose(proj_K, -2, -1)) / self.rooted_embed_dim
         norm_scores = F.softmax(scores, dim=-1)
-        norm_scores = F.dropout(norm_scores, 0.2)
+        norm_scores = F.dropout(norm_scores, 0.1)
 
         output = torch.matmul(norm_scores, proj_V)
         return output

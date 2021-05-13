@@ -58,7 +58,7 @@ class PwGaANLayer(nn.Module):
         """ Specify how messages are processed and propagated to nodes """
         # Aggregate features to nodes
         alpha = F.softmax(nodes.mailbox['e'], dim=1)
-        alpha = F.dropout(alpha, 0.2)
+        alpha = F.dropout(alpha, 0.1)
         h = torch.sum(alpha * nodes.mailbox['proj_z'], dim=1)
 
         # head gates

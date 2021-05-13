@@ -29,7 +29,7 @@ class SpatAttLayer(nn.Module):
 
     def forward(self, fg: dgl.DGLGraph, bg: dgl.DGLGraph, gg: dgl.DGLGraph):
         feat = fg.ndata['v']
-        feat = F.dropout(feat, 0.2)
+        feat = F.dropout(feat, 0.1)
         fg.ndata['v'] = feat
         bg.ndata['v'] = feat
         fg.ndata['v'] = feat

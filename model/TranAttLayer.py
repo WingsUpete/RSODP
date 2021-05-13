@@ -27,6 +27,9 @@ class TranAttLayer(nn.Module):
         elif self.activate_function_method == 'selu':
             self.activate_function = nn.SELU()
             gain_val = 0.75
+        else:   # Do not use activation
+            self.activate_function = None
+            gain_val = nn.init.calculate_gain('relu')
 
         # Shared Weight W_a for AttentionNet
         self.Wa = nn.Linear(self.embed_dim, self.embed_dim, bias=False)
@@ -73,7 +76,8 @@ class TranAttLayer(nn.Module):
 
         # Predict demands
         demands = self.demand_fc(embed_feat)
-        demands = self.activate_function(demands)
+        if self.activate_function:
+            demands = self.activate_function(demands)
         demands_out = demands.reshape(-1, num_nodes)
 
         if predict_G:

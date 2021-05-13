@@ -30,7 +30,7 @@ class Gallat(nn.Module):
         self.tempActivation = nn.ReLU()
 
         # Transferring Attention Layer
-        self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim, activate_function_method='relu')
+        self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim, activate_function_method=None)
 
     def forward(self, record, query, predict_G=False):
         # Extract spatial features

@@ -251,8 +251,8 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
 if __name__ == '__main__':
     """ 
         Usage Example:
-        python Trainer.py -dr data/ny2016_0101to0331/ -h 1064 -st 1 -c 4 -m train -net Gallat -pre 0
-        python Trainer.py -dr data/ny2016_0101to0331/ -h 1064 -st 1 -c 4 -m eval -e model/20221225_06_06_06.pth
+        python Trainer.py -dr data/ny2016_0101to0331/ -th 1064 -st 1 -c 4 -m train -net Gallat -pre 0
+        python Trainer.py -dr data/ny2016_0101to0331/ -th 1064 -st 1 -c 4 -m eval -e model/20221225_06_06_06.pth
     """
     parser = argparse.ArgumentParser()
     parser.add_argument('-lr', '--learning_rate', type=float, default=Config.LEARNING_RATE_DEFAULT, help='Learning rate, default = {}'.format(Config.LEARNING_RATE_DEFAULT))

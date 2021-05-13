@@ -18,6 +18,15 @@ class TranAttLayer(nn.Module):
         if self.activate_function_method == 'sigmoid':
             self.activate_function = nn.Sigmoid()
             gain_str = 'sigmoid'
+        elif self.activate_function_method == 'relu':
+            self.activate_function = nn.ReLU()
+            gain_str = 'relu'
+        elif self.activate_function_method == 'leaky_relu':
+            self.activate_function = nn.LeakyReLU()
+            gain_str = 'leaky_relu'
+        elif self.activate_function_method == 'selu':
+            self.activate_function = nn.SELU()
+            gain_str = 'selu'
 
         # Shared Weight W_a for AttentionNet
         self.Wa = nn.Linear(self.embed_dim, self.embed_dim, bias=False)
@@ -26,14 +35,14 @@ class TranAttLayer(nn.Module):
         self.att_out_fc_l = nn.Linear(self.embed_dim, 1, bias=False)
         self.att_out_fc_r = nn.Linear(self.embed_dim, 1, bias=False)
 
-        self.reset_parameters(nonlinearity='sigmoid')
+        self.reset_parameters(nonlinearity=gain_str)
 
     def reset_parameters(self, nonlinearity):
         gain = nn.init.calculate_gain(nonlinearity)
         nn.init.xavier_normal_(self.demand_fc.weight, gain=gain)
 
         # Attention
-        gain = nn.init.calculate_gain('leaky_relu', 0.2)
+        gain = nn.init.calculate_gain('leaky_relu')
         nn.init.xavier_normal_(self.Wa.weight, gain=gain)
         nn.init.xavier_normal_(self.att_out_fc_l.weight, gain=gain)
         nn.init.xavier_normal_(self.att_out_fc_r.weight, gain=gain)

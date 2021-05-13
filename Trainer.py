@@ -42,7 +42,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
           eval_freq=Config.EVAL_FREQ_DEFAULT, opt=Config.OPTIMIZER_DEFAULT, num_workers=Config.WORKERS_DEFAULT,
           use_gpu=True, data_dir=Config.DATA_DIR_DEFAULT, logr=Logger(activate=False), model=Config.NETWORK_DEFAULT,
           model_dir=Config.MODEL_DIR_DEFAULT, pretrain=False, metrics_threshold=Config.METRICS_THRESHOLD_DEFAULT,
-          total_H=Config.DATA_TOTAL_H, start_H=Config.DATA_START_H):
+          total_H=Config.DATA_TOTAL_H, start_H=Config.DATA_START_H, hidden_dim=Config.HIDDEN_DIM_DEFAULT,
+          feat_dim=Config.FEAT_DIM_DEFAULT, query_dim=Config.QUERY_DIM_DEFAULT):
     # Load DataSet
     logr.log('> Loading DataSet from {}\n'.format(data_dir))
     dataset = RSODPDataSet(data_dir, his_rec_num=Config.HISTORICAL_RECORDS_NUM_DEFAULT, time_slot_endurance=Config.TIME_SLOT_ENDURANCE_DEFAULT, total_H=total_H, start_at=start_H)
@@ -53,9 +54,9 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     # Initialize the Model
     logr.log('> Initializing the Training Model: {}, Pretrain = {}\n'.format(model, pretrain))
     predict_G = (not pretrain)
-    net = Gallat(feat_dim=Config.FEAT_DIM_DEFAULT, query_dim=Config.QUERY_DIM_DEFAULT, hidden_dim=Config.HIDDEN_DIM_DEFAULT)
+    net = Gallat(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim)
     if model == 'Gallat':
-        net = Gallat(feat_dim=Config.FEAT_DIM_DEFAULT, query_dim=Config.QUERY_DIM_DEFAULT, hidden_dim=Config.HIDDEN_DIM_DEFAULT)
+        net = Gallat(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim)
 
     # Select Optimizer
     logr.log('> Constructing the Optimizer: {}\n'.format(opt))
@@ -311,6 +312,9 @@ if __name__ == '__main__':
     parser.add_argument('-mt', '--metrics_threshold', type=int, default=Config.METRICS_THRESHOLD_DEFAULT, help='Specify the metrics threshold, default = {}'.format(Config.METRICS_THRESHOLD_DEFAULT))
     parser.add_argument('-th', '--hours', type=int, default=Config.DATA_TOTAL_H, help='Specify the number of hours for data, default = {}'.format(Config.DATA_TOTAL_H))
     parser.add_argument('-ts', '--start_hour', type=int, default=Config.DATA_START_H, help='Specify the starting hour for data, default = {}'.format(Config.DATA_START_H))
+    parser.add_argument('-hd', '--hidden_dim', type=int, default=Config.HIDDEN_DIM_DEFAULT, help='Specify the hidden dimension, default = {}'.format(Config.HIDDEN_DIM_DEFAULT))
+    parser.add_argument('-fd', '--feature_dim', type=int, default=Config.FEAT_DIM_DEFAULT, help='Specify the feature dimension, default = {}'.format(Config.FEAT_DIM_DEFAULT))
+    parser.add_argument('-qd', '--query_dim', type=int, default=Config.QUERY_DIM_DEFAULT, help='Specify the query dimension, default = {}'.format(Config.QUERY_DIM_DEFAULT))
 
     FLAGS, unparsed = parser.parse_known_args()
 
@@ -324,7 +328,8 @@ if __name__ == '__main__':
               use_gpu=(FLAGS.gpu == 1), data_dir=FLAGS.data_dir, logr=logger, model=FLAGS.network,
               model_dir=FLAGS.model_dir, pretrain=(FLAGS.pretrain == 1),
               metrics_threshold=torch.Tensor([FLAGS.metrics_threshold]),
-              total_H=FLAGS.hours, start_H=FLAGS.start_hour)
+              total_H=FLAGS.hours, start_H=FLAGS.start_hour, hidden_dim=FLAGS.hidden_dim,
+              feat_dim=FLAGS.feature_dim, query_dim=FLAGS.query_dim)
         logger.close()
     elif working_mode == 'eval':
         eval_file = FLAGS.eval

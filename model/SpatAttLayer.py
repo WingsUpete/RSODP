@@ -29,14 +29,22 @@ class SpatAttLayer(nn.Module):
 
     def forward(self, fg: dgl.DGLGraph, bg: dgl.DGLGraph, gg: dgl.DGLGraph):
         feat = fg.ndata['v']
+        feat = F.dropout(feat)
+        fg.ndata['v'] = feat
+        bg.ndata['v'] = feat
+        fg.ndata['v'] = feat
+
         proj_feat = self.proj_fc(feat)
         fg.ndata['proj_z'] = proj_feat
         bg.ndata['proj_z'] = proj_feat
         gg.ndata['proj_z'] = proj_feat
+
         h_fwd = self.fwdSpatAttLayer(fg)
         h_bwd = self.bwdSpatAttLayer(bg)
         h_geo = self.geoSpatAttLayer(gg)
+
         out_proj_feat = proj_feat.reshape(fg.batch_size, -1, self.hidden_dim)
+
         h = torch.cat([out_proj_feat, h_fwd, h_bwd, h_geo], dim=-1)
         return h
 

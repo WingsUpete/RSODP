@@ -58,6 +58,7 @@ class PwGaANLayer(nn.Module):
         """ Specify how messages are processed and propagated to nodes """
         # Aggregate features to nodes
         alpha = F.softmax(nodes.mailbox['e'], dim=1)
+        alpha = F.dropout(alpha)
         h = torch.sum(alpha * nodes.mailbox['proj_z'], dim=1)
 
         # head gates
@@ -82,6 +83,7 @@ class PwGaANLayer(nn.Module):
 
             # AttentionNet
             g.apply_edges(self.edge_attention)
+
             # Message Passing
             g.update_all(self.message_func, self.reduce_func)
             return g.ndata['h'].reshape(g.batch_size, -1, self.out_dim)

@@ -41,10 +41,11 @@ def batch2device(record: dict, query: torch.Tensor, target_G: torch.Tensor, targ
 def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Config.MAX_EPOCHS_DEFAULT,
           eval_freq=Config.EVAL_FREQ_DEFAULT, opt=Config.OPTIMIZER_DEFAULT, num_workers=Config.WORKERS_DEFAULT,
           use_gpu=True, data_dir=Config.DATA_DIR_DEFAULT, logr=Logger(activate=False), model=Config.NETWORK_DEFAULT,
-          model_dir=Config.MODEL_DIR_DEFAULT, pretrain=False, metrics_threshold=Config.METRICS_THRESHOLD_DEFAULT):
+          model_dir=Config.MODEL_DIR_DEFAULT, pretrain=False, metrics_threshold=Config.METRICS_THRESHOLD_DEFAULT,
+          total_H=Config.DATA_TOTAL_H, start_H=Config.DATA_START_H):
     # Load DataSet
     logr.log('> Loading DataSet from {}\n'.format(data_dir))
-    dataset = RSODPDataSet(data_dir, his_rec_num=Config.HISTORICAL_RECORDS_NUM_DEFAULT, time_slot_endurance=Config.TIME_SLOT_ENDURANCE_DEFAULT)
+    dataset = RSODPDataSet(data_dir, his_rec_num=Config.HISTORICAL_RECORDS_NUM_DEFAULT, time_slot_endurance=Config.TIME_SLOT_ENDURANCE_DEFAULT, total_H=total_H, start_at=start_H)
     trainloader = GraphDataLoader(dataset.train_set, batch_size=bs, shuffle=True, num_workers=num_workers)
     validloader = GraphDataLoader(dataset.valid_set, batch_size=bs, shuffle=False, num_workers=num_workers)
     logr.log('> Training batches: {}, Validation batches: {}'.format(len(trainloader), len(validloader)))
@@ -134,8 +135,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                 train_mape += MAPE(res_D, target_D, metrics_threshold).item() if pretrain else ((MAPE(res_D, target_D, metrics_threshold) + MAPE(res_G, target_G, metrics_threshold)) / 2).item()
                 train_mae += MAE(res_D, target_D, metrics_threshold).item() if pretrain else ((MAE(res_D, target_D, metrics_threshold) + MAE(res_G, target_G, metrics_threshold)) / 2).item()
 
-            if i == 0:    # DEBUG
-                break
+            # if i == 0:    # DEBUG
+            #     break
 
         # Analysis after one training round in the epoch
         train_loss /= len(trainloader)
@@ -147,40 +148,40 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
         train_time_per_sample = total_train_time / len(dataset.train_set)
         logr.log('Training Round %d: loss = %.4f, time_cost = %.4f sec (%.4f sec per sample), RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' % (epoch_i, train_loss, total_train_time, train_time_per_sample, metrics_threshold_val, train_rmse, metrics_threshold_val, train_mape, metrics_threshold_val, train_mae))
 
-        # # eval_freq: Evaluate on validation set
-        # if (epoch_i + 1) % eval_freq == 0:
-        #     net.eval()
-        #     val_loss_total = 0
-        #     val_rmse = 0
-        #     val_mape = 0
-        #     val_mae = 0
-        #     if device.type == 'cuda':
-        #         torch.cuda.empty_cache()
-        #     with torch.no_grad():
-        #         for j, val_batch in enumerate(validloader):
-        #             val_record, val_query, val_target_G, val_target_D = val_batch['record'], val_batch['query'], val_batch['target_G'], val_batch['target_D']
-        #             if device:
-        #                 val_record, val_query, al_target_G, val_target_D = batch2device(val_record, val_query, val_target_G, val_target_D, device)
-        #
-        #             val_res_D, val_res_G = net(val_record, val_query)
-        #             val_loss = criterion_D(val_res_D, val_target_D) if pretrain else (criterion_D(val_res_D, val_target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(val_res_G, val_target_G) * Config.G_PERCENTAGE_DEFAULT)
-        #
-        #             val_loss_total += val_loss.item()
-        #             val_rmse += ((RMSE(val_res_D, val_target_D, metrics_threshold) + RMSE(val_res_G, val_target_G, metrics_threshold)) / 2).item()
-        #             val_mape += ((MAPE(val_res_D, val_target_D, metrics_threshold) + MAPE(val_res_G, val_target_G, metrics_threshold)) / 2).item()
-        #             val_mae += ((MAE(val_res_D, val_target_D, metrics_threshold) + MAE(val_res_G, val_target_G, metrics_threshold)) / 2).item()
-        #
-        #         val_loss_total /= len(validloader)
-        #         val_rmse /= len(validloader)
-        #         val_mape /= len(validloader)
-        #         val_mae /= len(validloader)
-        #         logr.log('!!! Validation : loss = %.4f, RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' % (val_loss_total, metrics_threshold_val, val_rmse, metrics_threshold_val, val_mape, metrics_threshold_val, val_mae))
-        #
-        #         if val_loss_total < min_eval_loss:
-        #             min_eval_loss = val_loss_total
-        #             model_name = os.path.join(model_dir, '{}.pth'.format(logr.time_tag))
-        #             torch.save(net, model_name)
-        #             logr.log('Model: {} has been saved since it achieves smaller loss.\n'.format(model_name))
+        # eval_freq: Evaluate on validation set
+        if (epoch_i + 1) % eval_freq == 0:
+            net.eval()
+            val_loss_total = 0
+            val_rmse = 0
+            val_mape = 0
+            val_mae = 0
+            if device.type == 'cuda':
+                torch.cuda.empty_cache()
+            with torch.no_grad():
+                for j, val_batch in enumerate(validloader):
+                    val_record, val_query, val_target_G, val_target_D = val_batch['record'], val_batch['query'], val_batch['target_G'], val_batch['target_D']
+                    if device:
+                        val_record, val_query, al_target_G, val_target_D = batch2device(val_record, val_query, val_target_G, val_target_D, device)
+
+                    val_res_D, val_res_G = net(val_record, val_query)
+                    val_loss = criterion_D(val_res_D, val_target_D) if pretrain else (criterion_D(val_res_D, val_target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(val_res_G, val_target_G) * Config.G_PERCENTAGE_DEFAULT)
+
+                    val_loss_total += val_loss.item()
+                    val_rmse += ((RMSE(val_res_D, val_target_D, metrics_threshold) + RMSE(val_res_G, val_target_G, metrics_threshold)) / 2).item()
+                    val_mape += ((MAPE(val_res_D, val_target_D, metrics_threshold) + MAPE(val_res_G, val_target_G, metrics_threshold)) / 2).item()
+                    val_mae += ((MAE(val_res_D, val_target_D, metrics_threshold) + MAE(val_res_G, val_target_G, metrics_threshold)) / 2).item()
+
+                val_loss_total /= len(validloader)
+                val_rmse /= len(validloader)
+                val_mape /= len(validloader)
+                val_mae /= len(validloader)
+                logr.log('!!! Validation : loss = %.4f, RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' % (val_loss_total, metrics_threshold_val, val_rmse, metrics_threshold_val, val_mape, metrics_threshold_val, val_mae))
+
+                if val_loss_total < min_eval_loss:
+                    min_eval_loss = val_loss_total
+                    model_name = os.path.join(model_dir, '{}.pth'.format(logr.time_tag))
+                    torch.save(net, model_name)
+                    logr.log('Model: {} has been saved since it achieves smaller loss.\n'.format(model_name))
 
         if epoch_i == 0:    # break
             break
@@ -236,7 +237,8 @@ def MAPE(y_pred, y_true, threshold=Config.ZERO_TENSOR):
 
 
 def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT, use_gpu=True,
-             data_dir=Config.DATA_DIR_DEFAULT, logr=Logger(activate=False)):
+             data_dir=Config.DATA_DIR_DEFAULT, logr=Logger(activate=False),
+             total_H=Config.DATA_TOTAL_H, start_H=Config.DATA_START_H):
     """
         Evaluate using saved best model (Note that this is a Test API)
         1. Re-evaluate on the validation set
@@ -249,8 +251,8 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
 if __name__ == '__main__':
     """ 
         Usage Example:
-        python Trainer.py -dr data/ny2016_0101to0331/ -c 4 -m train -net Gallat -pre 0
-        python Trainer.py -dr data/ny2016_0101to0331/ -c 4 -m eval -e model/20221225_06_06_06.pth
+        python Trainer.py -dr data/ny2016_0101to0331/ -h 1064 -st 1 -c 4 -m train -net Gallat -pre 0
+        python Trainer.py -dr data/ny2016_0101to0331/ -h 1064 -st 1 -c 4 -m eval -e model/20221225_06_06_06.pth
     """
     parser = argparse.ArgumentParser()
     parser.add_argument('-lr', '--learning_rate', type=float, default=Config.LEARNING_RATE_DEFAULT, help='Learning rate, default = {}'.format(Config.LEARNING_RATE_DEFAULT))
@@ -268,6 +270,8 @@ if __name__ == '__main__':
     parser.add_argument('-md', '--model_dir', type=str, default=Config.MODEL_DIR_DEFAULT, help='Specify the location of network to be saved, default = {}'.format(Config.MODEL_DIR_DEFAULT))
     parser.add_argument('-pre', '--pretrain', type=int, default=Config.PRETRAIN_DEFAULT, help='Specify whether to pretrain the model (only predict demands), default = {}'.format(Config.PRETRAIN_DEFAULT))
     parser.add_argument('-mt', '--metrics_threshold', type=int, default=Config.METRICS_THRESHOLD_DEFAULT, help='Specify the metrics threshold, default = {}'.format(Config.METRICS_THRESHOLD_DEFAULT))
+    parser.add_argument('-th', '--hours', type=int, default=Config.DATA_TOTAL_H, help='Specify the number of hours for data, default = {}'.format(Config.DATA_TOTAL_H))
+    parser.add_argument('-ts', '--start_hour', type=int, default=Config.DATA_START_H, help='Specify the starting hour for data, default = {}'.format(Config.DATA_START_H))
 
     FLAGS, unparsed = parser.parse_known_args()
 
@@ -280,7 +284,8 @@ if __name__ == '__main__':
               eval_freq=FLAGS.eval_freq, opt=FLAGS.optimizer, num_workers=FLAGS.cores,
               use_gpu=(FLAGS.gpu == 1), data_dir=FLAGS.data_dir, logr=logger, model=FLAGS.network,
               model_dir=FLAGS.model_dir, pretrain=(FLAGS.pretrain == 1),
-              metrics_threshold=torch.Tensor([FLAGS.metrics_threshold]))
+              metrics_threshold=torch.Tensor([FLAGS.metrics_threshold]),
+              total_H=FLAGS.hours, start_H=FLAGS.start_hour)
         logger.close()
     elif working_mode == 'eval':
         eval_file = FLAGS.eval
@@ -291,7 +296,7 @@ if __name__ == '__main__':
             exit(-1)
         # Normal
         evaluate(eval_file, bs=FLAGS.batch_size, num_workers=FLAGS.cores, use_gpu=(FLAGS.gpu == 1),
-                 data_dir=FLAGS.data_dir, logr=logger)
+                 data_dir=FLAGS.data_dir, logr=logger, total_H=FLAGS.hours, start_H=FLAGS.start_hour)
         logger.close()
     else:
         sys.stderr.write('Please specify the running mode (train/eval)\n')

@@ -74,11 +74,14 @@ class RSODPDataSet:
         validation set: the last 10% of the training set
     """
 
-    def __init__(self, data_dir: str, his_rec_num=7, time_slot_endurance=1):
+    def __init__(self, data_dir: str, his_rec_num=7, time_slot_endurance=1, total_H=-1, start_at=-1):
         self.data_dir = data_dir
         self.req_info = json.load(open(os.path.join(data_dir, 'req_info.json')))
         self.his_rec_num = his_rec_num  # P
         self.time_slot_num_per_day = 24 / time_slot_endurance  # l
+
+        self.total_H = self.req_info['totalH'] if total_H <= 0 else total_H
+        self.start_at = 1 if start_at <= 0 else start_at
 
         self.total_sample_list = self.constructSampleList()
         self.total_sample_num = len(self.total_sample_list)
@@ -89,13 +92,13 @@ class RSODPDataSet:
         self.test_set = RSODPDataSetEntity(self.data_dir, sample_list=self.test_list, ds_type='test')
 
     def constructSampleList(self):
-        totalH = self.req_info['totalH']
+        totalH = self.total_H
         total_list = []
         for i in range(totalH):
-            cur_ts = i + 1
+            cur_ts = self.start_at + i
             # Have T=cur_ts data, predict T+1=cur_ts+1
             # For predicting T+1: (T-lP) is the smallest time slot to be considered
-            if (cur_ts - self.time_slot_num_per_day * self.his_rec_num <= 0) or (cur_ts + 1 > totalH):
+            if (cur_ts - self.time_slot_num_per_day * self.his_rec_num <= 0) or (cur_ts + 1 > self.req_info['totalH']):
                 # Omit incomplete sample
                 continue
             St = [int(cur_ts - pm1) for pm1 in range(self.his_rec_num)]  # Tendency: T + 1 - p, p in [1, P]
@@ -142,7 +145,7 @@ def testSamplingSpeed(dataset: DGLDataset, batch_size: int, shuffle: bool, tag: 
 
 if __name__ == '__main__':
     path = 'data/ny2016_0101to0331/'
-    ds = RSODPDataSet(data_dir=path)
+    ds = RSODPDataSet(data_dir=path, total_H=1064, start_at=729)
     testSamplingSpeed(ds.train_set, batch_size=20, shuffle=True, tag='Training', num_workers=4)
     testSamplingSpeed(ds.valid_set, batch_size=20, shuffle=False, tag='Validation', num_workers=4)
     testSamplingSpeed(ds.test_set, batch_size=20, shuffle=False, tag='Test', num_workers=4)

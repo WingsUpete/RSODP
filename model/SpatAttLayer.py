@@ -24,12 +24,12 @@ class SpatAttLayer(nn.Module):
 
     def reset_parameters(self):
         """ Reinitialize learnable parameters. """
-        gain = nn.init.calculate_gain('leaky_relu', 0.2)
+        gain = nn.init.calculate_gain('leaky_relu')
         nn.init.xavier_normal_(self.proj_fc.weight, gain=gain)
 
     def forward(self, fg: dgl.DGLGraph, bg: dgl.DGLGraph, gg: dgl.DGLGraph):
         feat = fg.ndata['v']
-        feat = F.dropout(feat)
+        feat = F.dropout(feat, 0.2)
         fg.ndata['v'] = feat
         bg.ndata['v'] = feat
         fg.ndata['v'] = feat

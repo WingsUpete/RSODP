@@ -21,8 +21,8 @@ class TempAttLayer(nn.Module):
         self.combScaledDotProductAttention = ScaledDotProductAttention(self.query_dim, self.embed_dim, merge=self.comb_merge)
 
         # Dropout
-        self.recDropout = nn.Dropout()
-        self.combDropout = nn.Dropout()
+        self.recDropout = nn.Dropout(0.2)
+        self.combDropout = nn.Dropout(0.2)
 
         # Normalization
         self.recNorm = nn.LayerNorm(self.embed_dim)

@@ -183,8 +183,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                     torch.save(net, model_name)
                     logr.log('Model: {} has been saved since it achieves smaller loss.\n'.format(model_name))
 
-        if epoch_i == 0:    # break
-            break
+        # if epoch_i == 0:    # break
+        #     break
 
 
 def filter_with_threshold(x: torch.Tensor, threshold: torch.Tensor):

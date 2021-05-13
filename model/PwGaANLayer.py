@@ -7,20 +7,23 @@ import torch.nn.functional as F
 class PwGaANLayer(nn.Module):
     def __init__(self, in_dim, out_dim, gate=False):
         super(PwGaANLayer, self).__init__()
+        self.in_dim = in_dim
+        self.out_dim = out_dim
+
         # Shared Weight W_a for AttentionNet
-        self.Wa = nn.Linear(in_dim, out_dim, bias=False)
+        self.Wa = nn.Linear(self.in_dim, self.out_dim, bias=False)
         # AttentionNet outer linear layer
         # split fc to avoid cat
-        self.att_out_fc_l = nn.Linear(out_dim, 1, bias=False)
-        self.att_out_fc_r = nn.Linear(out_dim, 1, bias=False)
+        self.att_out_fc_l = nn.Linear(self.out_dim, 1, bias=False)
+        self.att_out_fc_r = nn.Linear(self.out_dim, 1, bias=False)
         # Head gate layer
         self.gate = gate
         if self.gate:
             # split fc to avoid cat
-            self.gate_fc_l = nn.Linear(in_dim, 1, bias=False)
-            self.gate_fc_m = nn.Linear(out_dim, 1, bias=False)
-            self.gate_fc_r = nn.Linear(in_dim, 1, bias=False)
-            self.Wg = nn.Linear(in_dim, out_dim, bias=False)
+            self.gate_fc_l = nn.Linear(self.in_dim, 1, bias=False)
+            self.gate_fc_m = nn.Linear(self.out_dim, 1, bias=False)
+            self.gate_fc_r = nn.Linear(self.in_dim, 1, bias=False)
+            self.Wg = nn.Linear(self.in_dim, self.out_dim, bias=False)
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -81,7 +84,7 @@ class PwGaANLayer(nn.Module):
             g.apply_edges(self.edge_attention)
             # Message Passing
             g.update_all(self.message_func, self.reduce_func)
-            return g.ndata['h']
+            return g.ndata['h'].reshape(g.batch_size, -1, self.out_dim)
 
 
 class MultiHeadPwGaANLayer(nn.Module):
@@ -96,6 +99,6 @@ class MultiHeadPwGaANLayer(nn.Module):
     def forward(self, g: dgl.DGLGraph):
         head_outs = [attn_head(g) for attn_head in self.heads]
         if self.merge == 'cat':
-            return torch.cat(head_outs, dim=1)
+            return torch.cat(head_outs, dim=-1)
         else:
             return torch.mean(sum(head_outs) / len(head_outs))

@@ -10,11 +10,16 @@ from .PwGaANLayer import MultiHeadPwGaANLayer
 class SpatAttLayer(nn.Module):
     def __init__(self, feat_dim, hidden_dim, num_heads, gate=False):
         super(SpatAttLayer, self).__init__()
+        self.feat_dim = feat_dim
+        self.hidden_dim = hidden_dim
+        self.num_heads = num_heads
         self.gate = gate
-        self.fwdSpatAttLayer = MultiHeadPwGaANLayer(feat_dim, hidden_dim, num_heads, gate=self.gate)
-        self.bwdSpatAttLayer = MultiHeadPwGaANLayer(feat_dim, hidden_dim, num_heads, gate=self.gate)
-        self.geoSpatAttLayer = MultiHeadPwGaANLayer(feat_dim, hidden_dim, num_heads, gate=self.gate)
-        self.proj_fc = nn.Linear(feat_dim, hidden_dim, bias=False)
+
+        self.fwdSpatAttLayer = MultiHeadPwGaANLayer(self.feat_dim, self.hidden_dim, self.num_heads, gate=self.gate)
+        self.bwdSpatAttLayer = MultiHeadPwGaANLayer(self.feat_dim, self.hidden_dim, self.num_heads, gate=self.gate)
+        self.geoSpatAttLayer = MultiHeadPwGaANLayer(self.feat_dim, self.hidden_dim, self.num_heads, gate=self.gate)
+        self.proj_fc = nn.Linear(self.feat_dim, self.hidden_dim, bias=False)
+
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -31,7 +36,8 @@ class SpatAttLayer(nn.Module):
         h_fwd = self.fwdSpatAttLayer(fg)
         h_bwd = self.bwdSpatAttLayer(bg)
         h_geo = self.geoSpatAttLayer(gg)
-        h = torch.cat([proj_feat, h_fwd, h_bwd, h_geo], dim=1)
+        out_proj_feat = proj_feat.reshape(fg.batch_size, -1, self.hidden_dim)
+        h = torch.cat([out_proj_feat, h_fwd, h_bwd, h_geo], dim=-1)
         return h
 
 

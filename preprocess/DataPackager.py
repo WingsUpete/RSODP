@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import torch
 import dgl
+import multiprocessing
 
 EPSILON = 1e-12
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -154,7 +155,99 @@ def saveGeoGraph(geoG, fPath):
     print('Geographical info saved to {}'.format(fPath))
 
 
-def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1):
+def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_nodes, grid_info):
+    curH = i + 1
+    print('-> Splitting hour-wise data No.{}/{}.'.format(curH, totalH))
+
+    # Folder for this split of data
+    curDir = os.path.join(folder, str(curH))
+    if not os.path.isdir(curDir):
+        os.mkdir(curDir)
+
+    dayOfWeek = lowT.weekday()  # Mon: 0, ..., Sun: 6
+
+    GDVQ = {}
+
+    # Save request.csv
+    if export_requests:
+        df_split.to_csv(os.path.join(curDir, 'request.csv'), index=False)
+
+    # Get request matrix G
+    request_matrix = np.zeros((len(grid_nodes), len(grid_nodes)))
+    for split_i in range(len(df_split)):
+        curData = df_split.iloc[split_i]
+        srcRow, srcCol, srcID = inWhichGrid((curData['src lat'], curData['src lng']), grid_info)
+        dstRow, dstCol, dstID = inWhichGrid((curData['dst lat'], curData['dst lng']), grid_info)
+        request_matrix[srcID][dstID] += curData['volume']
+    GDVQ['G'] = request_matrix.astype(np.float32)
+
+    # Get Feature Matrix V
+    feature_vectors = []
+    query_feature_vectors = []
+    inDs = np.sum(request_matrix, axis=0)  # Col-wise: Total number of nodes pointing to current node = In Degree
+    outDs = np.sum(request_matrix, axis=1)  # Row-wise: Total number of nodes current node points to = Out Degree
+    GDVQ['D'] = outDs.astype(np.float32)
+
+    for vi in range(len(grid_nodes)):
+        viRow, viCol = ID2Coord(vi, grid_info)
+        feature_vector = [viRow, viCol, outDs[vi], inDs[vi], vi, curH, dayOfWeek]
+        feature_vectors.append(feature_vector)
+        query_feature_vector = [viRow, viCol, vi, curH, dayOfWeek]
+        query_feature_vectors.append(query_feature_vector)
+    feature_matrix = np.array(feature_vectors)
+    query_feature_matrix = np.array(query_feature_vectors)
+    GDVQ['V'] = feature_matrix.astype(np.float32)
+    GDVQ['Q'] = query_feature_matrix.astype(np.float32)
+
+    # Save GDVQ as GDVQ.npy
+    np.save(os.path.join(curDir, 'GDVQ.npy'), GDVQ)
+
+    # Get Psi (Forward Neighborhood) and Phi (Backward Neighborhood)
+    PaSrcList, PaDstList = [], []  # Psi & a
+    PbSrcList, PbDstList = [], []  # Phi & b
+    PaMat = np.zeros((len(grid_nodes), len(grid_nodes)))
+    PbMat = np.zeros((len(grid_nodes), len(grid_nodes)))
+    for rmi in range(len(grid_nodes)):
+        for rmj in range(len(grid_nodes)):
+            if request_matrix[rmi][rmj] > 0:  # In this case, rmi == rmj is valid
+                # rmi -> rmj, rmj is rmi's forward neighbor, rmi is rmj's backward neighbor
+                # forward neighborhood: features of rmj should propagate to rmi, thus rmj->rmi
+                # backward neighborhood: features of rmi should propagate to rmj, thus rmi->rmj
+                PaSrcList, PaDstList = pushGraphEdge(PaSrcList, PaDstList, None, rmj, rmi, None)
+                PaMat[rmj][rmi] = request_matrix[rmi][rmj] + EPSILON
+                PbSrcList, PbDstList = pushGraphEdge(PbSrcList, PbDstList, None, rmi, rmj, None)
+                PbMat[rmi][rmj] = request_matrix[rmi][rmj] + EPSILON
+    PaSum = np.sum(PaMat, axis=0)
+    for ni in range(len(grid_nodes)):
+        if PaSum[ni] == 0:
+            continue
+        for nj in range(len(grid_nodes)):
+            PaMat[nj][ni] /= PaSum[ni]
+    PbSum = np.sum(PbMat, axis=0)
+    for ni in range(len(grid_nodes)):
+        if PbSum[ni] == 0:
+            continue
+        for nj in range(len(grid_nodes)):
+            PbMat[nj][ni] /= PbSum[ni]
+
+    # Transform node data Mat to edge data Edges
+    PaEdges = []
+    for paei in range(len(PaSrcList)):
+        PaEdges.append([PaMat[PaSrcList[paei]][PaDstList[paei]]])
+    PbEdges = []
+    for pbei in range(len(PbSrcList)):
+        PbEdges.append([PbMat[PbSrcList[pbei]][PbDstList[pbei]]])
+
+    FNGraph = dgl.graph((PaSrcList, PaDstList), num_nodes=len(grid_nodes))
+    FNGraph.edata['pre_w'] = torch.Tensor(PaEdges)
+    BNGraph = dgl.graph((PbSrcList, PbDstList), num_nodes=len(grid_nodes))
+    BNGraph.edata['pre_w'] = torch.Tensor(PbEdges)
+
+    # Save two neighborhood graphs
+    dgl.save_graphs(os.path.join(curDir, 'FBGraphs.dgl'), [FNGraph, BNGraph])
+
+
+def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_workers=10):
     """
     Split data in hours (request.csv, GDVQ.npy) of each DDW Snapshot Graph
     :param fPath: The path of request data file
@@ -182,102 +275,20 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1):
         json.dump(req_info, f)
     print('requests info saved to {}'.format(req_info_path))
 
+    pool = multiprocessing.Pool(processes=num_workers)
     for i in range(totalH):
-        curH = i + 1
-        print('\r-> Splitting hour-wise data No.{}/{}.'.format(curH, totalH), end='\r')
-
-        # Folder for this split of data
-        curDir = os.path.join(folder, str(curH))
-        if not os.path.isdir(curDir):
-            os.mkdir(curDir)
-
-        # Filtered data frame
+        # Filter data
         mask = ((df['request time'] >= lowT) & (df['request time'] < upT)).values
         df_split = df.iloc[mask]
-        dayOfWeek = lowT.weekday()  # Mon: 0, ..., Sun: 6
 
-        GDVQ = {}
-
-        # Save request.csv
-        if export_requests:
-            df_split.to_csv(os.path.join(curDir, 'request.csv'), index=False)
-
-        # Get request matrix G
-        request_matrix = np.zeros((len(grid_nodes), len(grid_nodes)))
-        for split_i in range(len(df_split)):
-            curData = df_split.iloc[split_i]
-            srcRow, srcCol, srcID = inWhichGrid((curData['src lat'], curData['src lng']), grid_info)
-            dstRow, dstCol, dstID = inWhichGrid((curData['dst lat'], curData['dst lng']), grid_info)
-            request_matrix[srcID][dstID] += curData['volume']
-        GDVQ['G'] = request_matrix.astype(np.float32)
-
-        # Get Feature Matrix V
-        feature_vectors = []
-        query_feature_vectors = []
-        inDs = np.sum(request_matrix, axis=0)  # Col-wise: Total number of nodes pointing to current node = In Degree
-        outDs = np.sum(request_matrix, axis=1)  # Row-wise: Total number of nodes current node points to = Out Degree
-        GDVQ['D'] = outDs.astype(np.float32)
-
-        for vi in range(len(grid_nodes)):
-            viRow, viCol = ID2Coord(vi, grid_info)
-            feature_vector = [viRow, viCol, outDs[vi], inDs[vi], vi, curH, dayOfWeek]
-            feature_vectors.append(feature_vector)
-            query_feature_vector = [viRow, viCol, vi, curH, dayOfWeek]
-            query_feature_vectors.append(query_feature_vector)
-        feature_matrix = np.array(feature_vectors)
-        query_feature_matrix = np.array(query_feature_vectors)
-        GDVQ['V'] = feature_matrix.astype(np.float32)
-        GDVQ['Q'] = query_feature_matrix.astype(np.float32)
-
-        # Save GDVQ as GDVQ.npy
-        np.save(os.path.join(curDir, 'GDVQ.npy'), GDVQ)
-
-        # Get Psi (Forward Neighborhood) and Phi (Backward Neighborhood)
-        PaSrcList, PaDstList = [], []   # Psi & a
-        PbSrcList, PbDstList = [], []   # Phi & b
-        PaMat = np.zeros((len(grid_nodes), len(grid_nodes)))
-        PbMat = np.zeros((len(grid_nodes), len(grid_nodes)))
-        for rmi in range(len(grid_nodes)):
-            for rmj in range(len(grid_nodes)):
-                if request_matrix[rmi][rmj] > 0:  # In this case, rmi == rmj is valid
-                    # rmi -> rmj, rmj is rmi's forward neighbor, rmi is rmj's backward neighbor
-                    # forward neighborhood: features of rmj should propagate to rmi, thus rmj->rmi
-                    # backward neighborhood: features of rmi should propagate to rmj, thus rmi->rmj
-                    PaSrcList, PaDstList = pushGraphEdge(PaSrcList, PaDstList, None, rmj, rmi, None)
-                    PaMat[rmj][rmi] = request_matrix[rmi][rmj] + EPSILON
-                    PbSrcList, PbDstList = pushGraphEdge(PbSrcList, PbDstList, None, rmi, rmj, None)
-                    PbMat[rmi][rmj] = request_matrix[rmi][rmj] + EPSILON
-        PaSum = np.sum(PaMat, axis=0)
-        for ni in range(len(grid_nodes)):
-            if PaSum[ni] == 0:
-                continue
-            for nj in range(len(grid_nodes)):
-                PaMat[nj][ni] /= PaSum[ni]
-        PbSum = np.sum(PbMat, axis=0)
-        for ni in range(len(grid_nodes)):
-            if PbSum[ni] == 0:
-                continue
-            for nj in range(len(grid_nodes)):
-                PbMat[nj][ni] /= PbSum[ni]
-
-        # Transform node data Mat to edge data Edges
-        PaEdges = []
-        for paei in range(len(PaSrcList)):
-            PaEdges.append([PaMat[PaSrcList[paei]][PaDstList[paei]]])
-        PbEdges = []
-        for pbei in range(len(PbSrcList)):
-            PbEdges.append([PbMat[PbSrcList[pbei]][PbDstList[pbei]]])
-
-        FNGraph = dgl.graph((PaSrcList, PaDstList), num_nodes=len(grid_nodes))
-        FNGraph.edata['pre_w'] = torch.Tensor(PaEdges)
-        BNGraph = dgl.graph((PbSrcList, PbDstList), num_nodes=len(grid_nodes))
-        BNGraph.edata['pre_w'] = torch.Tensor(PbEdges)
-
-        # Save two neighborhood graphs
-        dgl.save_graphs(os.path.join(curDir, 'FBGraphs.dgl'), [FNGraph, BNGraph])
+        # Handle data
+        pool.apply_async(handleRequestData, args=(i, totalH, folder, lowT, df_split, export_requests, grid_nodes, grid_info))
 
         lowT += pd.Timedelta(hours=1)
         upT += pd.Timedelta(hours=1)
+
+    pool.close()
+    pool.join()
 
     print('Data splitting complete.')
 
@@ -333,8 +344,10 @@ if __name__ == '__main__':
                             2.5))
     parser.add_argument('-er', '--exportRequests', type=int, default=1,
                         help='Whether the split requests should be exported, default={}'.format(1))
-    parser.add_argument('-od', '--outDir', type=str, default='',
+    parser.add_argument('-od', '--outDir', type=str, default='./',
                         help='Where the data should be exported, default={}'.format('""'))
+    parser.add_argument('-c', '--cores', type=int, default=10,
+                        help='How many cores should we use for paralleling , default={}'.format(10))
     FLAGS, unparsed = parser.parse_known_args()
 
     if not os.path.isfile(FLAGS.data):
@@ -362,6 +375,6 @@ if __name__ == '__main__':
     # print(dgl.load_graphs(os.path.join(folderName, 'GeoGraph.dgl')))  # Load Example
 
     # 3
-    splitData(FLAGS.data, folderName, gridNodes, gridInfo, FLAGS.exportRequests == 1)
+    splitData(FLAGS.data, folderName, gridNodes, gridInfo, FLAGS.exportRequests == 1, num_workers=FLAGS.cores)
     # print(np.load('GVQ.npy', allow_pickle=True).item())  # Load Example
     # (fg, bg), _ = dgl.load_graphs('FBGraphs.dgl')  # Load Example

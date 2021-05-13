@@ -46,7 +46,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     logr.log('> Loading DataSet from {}\n'.format(data_dir))
     dataset = RSODPDataSet(data_dir, his_rec_num=Config.HISTORICAL_RECORDS_NUM_DEFAULT, time_slot_endurance=Config.TIME_SLOT_ENDURANCE_DEFAULT)
     trainloader = GraphDataLoader(dataset.train_set, batch_size=bs, shuffle=True, num_workers=num_workers)
-    validloader = GraphDataLoader(dataset.train_set, batch_size=bs, shuffle=False, num_workers=num_workers)
+    validloader = GraphDataLoader(dataset.valid_set, batch_size=bs, shuffle=False, num_workers=num_workers)
 
     # Initialize the Model
     logr.log('> Initializing the Training Model: {}, Pretrain = {}\n'.format(model, pretrain))
@@ -114,13 +114,16 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
             #     with profiler.record_function('model_inference'):
             #         res_D, res_G = net(record, query)   # if pretrain, res_G = None
             #         loss = criterion_D(res_D, target_D) if pretrain else (criterion_D(res_D, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G) * Config.G_PERCENTAGE_DEFAULT)
-
-            res_D, res_G = net(record, query)  # if pretrain, res_G = None
-            loss = criterion_D(res_D, target_D) if pretrain else (criterion_D(res_D, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G) * Config.G_PERCENTAGE_DEFAULT)
-
             # logr.log(prof.key_averages().table(sort_by="cuda_time_total"))
 
+            time_tf_0 = time.time()
+            res_D, res_G = net(record, query)  # if pretrain, res_G = None
+            loss = criterion_D(res_D, target_D) if pretrain else (criterion_D(res_D, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G) * Config.G_PERCENTAGE_DEFAULT)
+            logr.log('Train Forward Time (Including Criterion) = %.4f sec\n' % (time.time() - time_tf_0))
+
+            time_tb_0 = time.time()
             loss.backward()
+            logr.log('Train Backward Time = %.4f sec\n' % (time.time() - time_tb_0))
             optimizer.step()
 
             # Analysis
@@ -130,8 +133,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                 train_mape += MAPE(res_D, target_D, metrics_threshold).item() if pretrain else ((MAPE(res_D, target_D, metrics_threshold) + MAPE(res_G, target_G, metrics_threshold)) / 2).item()
                 train_mae += MAE(res_D, target_D, metrics_threshold).item() if pretrain else ((MAE(res_D, target_D, metrics_threshold) + MAE(res_G, target_G, metrics_threshold)) / 2).item()
 
-            # if i == 0:    # DEBUG
-            #     break
+            if i == 0:    # DEBUG
+                break
 
         # Analysis after one training round in the epoch
         train_loss /= len(trainloader)

@@ -1,3 +1,4 @@
+import time
 import dgl
 import torch
 import torch.nn as nn
@@ -33,15 +34,22 @@ class Gallat(nn.Module):
 
     def forward(self, record, query):
         # Extract spatial features
+        time_start = time.time()
         spat_embed_dict = {}
         for temp_feat in TEMP_FEAT_NAMES:
-            spat_embed_dict[temp_feat] = [self.spatAttLayer(fg, bg, gg).reshape(-1, fg.number_of_nodes(), self.spat_embed_dim) for (fg, bg, gg) in record[temp_feat]]
+            spat_embed_dict[temp_feat] = [self.spatAttLayer(fg, bg, gg) for (fg, bg, gg) in record[temp_feat]]
+        time_spat = time.time()
+        print('Spatial Layer: %.4f sec' % (time_spat - time_start))
 
         # Extract temporal features
         temp_embed = self.tempAttLayer(query, spat_embed_dict)
+        time_temp = time.time()
+        print('Temporal Layer: %.4f sec' % (time_temp - time_spat))
 
         # Transferring features to perform predictions
         res = self.tranAttLayer(temp_embed, self.predict_G)
+        time_tran = time.time()
+        print('Transferring Layer: %.4f sec' % (time_tran - time_temp))
 
         return res
 

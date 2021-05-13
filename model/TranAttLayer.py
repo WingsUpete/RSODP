@@ -38,27 +38,27 @@ class TranAttLayer(nn.Module):
         nn.init.xavier_normal_(self.att_out_fc_l.weight, gain=gain)
         nn.init.xavier_normal_(self.att_out_fc_r.weight, gain=gain)
 
-    def predict_request_graph_attention(self, embed_feat_sample):
-        num_nodes = embed_feat_sample.shape[-2]
-        proj_embed_feat_sample = self.Wa(embed_feat_sample)
-
-        # Apply Attention
-        A = torch.zeros(num_nodes, num_nodes, 1, device=proj_embed_feat_sample.device)
-        for i in range(num_nodes):
-            for j in range(num_nodes):
-                A[i][j] = self.att_out_fc_l(proj_embed_feat_sample[i]) + self.att_out_fc_r(proj_embed_feat_sample[j])
-        A = F.leaky_relu(A)
-        Q = F.softmax(A, dim=1)
-        Q = Q.reshape(num_nodes, num_nodes)
-        return Q
-
     def predict_request_graphs(self, embed_feat, demands):
         num_nodes = embed_feat.shape[-2]
-        Q_list = [self.predict_request_graph_attention(embed_feat_sample) for embed_feat_sample in embed_feat]
-        Qs = torch.stack(Q_list)
-        rel_Ds = torch.stack([demands for i in range(num_nodes)], dim=-1)
-        Gs = Qs * rel_Ds
-        return Gs
+        proj_embed_feat = self.Wa(embed_feat)
+
+        # Apply Attention: Use repeat to expand the features
+        el = self.att_out_fc_l(proj_embed_feat)
+        er = self.att_out_fc_r(proj_embed_feat)
+        el_exp = el.repeat(1, 1, num_nodes)
+        er_exp = torch.transpose(er, -2, -1).repeat(1, num_nodes, 1)
+        A = el_exp + er_exp
+
+        A = F.leaky_relu(A)
+        Q = F.softmax(A, dim=-1)
+
+        # Expand D as well
+        rel_D = demands.repeat(1, 1, num_nodes)
+
+        # Get graph
+        G = Q * rel_D
+
+        return G
 
     def forward(self, embed_feat, predict_G):
         num_nodes = embed_feat.shape[-2]
@@ -66,11 +66,11 @@ class TranAttLayer(nn.Module):
         # Predict demands
         demands = self.demand_fc(embed_feat)
         demands = self.activate_function(demands)
-        demands = demands.reshape(-1, num_nodes)
+        demands_out = demands.reshape(-1, num_nodes)
 
         if predict_G:
             # Predict Request Graph
             req_gs = self.predict_request_graphs(embed_feat, demands)
-            return demands, req_gs
+            return demands_out, req_gs
         else:
-            return demands, None
+            return demands_out, None

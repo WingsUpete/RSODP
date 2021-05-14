@@ -215,7 +215,7 @@ def RMSE(y_pred: torch.Tensor, y_true: torch.Tensor, threshold=Config.ZERO_TENSO
     """
     y_pred_filter = filter_with_threshold(y_pred, threshold)
     y_true_filter = filter_with_threshold(y_true, threshold)
-    return torch.sqrt(torch.mean(torch.pow((y_pred_filter - y_true_filter), 2)))
+    return torch.sqrt(torch.mean(torch.pow((y_true_filter - y_pred_filter), 2)))
 
 
 def MAE(y_pred, y_true, threshold=Config.ZERO_TENSOR):
@@ -228,7 +228,7 @@ def MAE(y_pred, y_true, threshold=Config.ZERO_TENSOR):
     """
     y_pred_filter = filter_with_threshold(y_pred, threshold)
     y_true_filter = filter_with_threshold(y_true, threshold)
-    return torch.mean(torch.abs(y_pred_filter - y_true_filter))
+    return torch.mean(torch.abs(y_true_filter - y_pred_filter))
 
 
 def MAPE(y_pred, y_true, threshold=Config.ZERO_TENSOR):
@@ -241,7 +241,7 @@ def MAPE(y_pred, y_true, threshold=Config.ZERO_TENSOR):
     """
     y_pred_filter = filter_with_threshold(y_pred, threshold)
     y_true_filter = filter_with_threshold(y_true, threshold)
-    return torch.mean(torch.abs((y_pred_filter - y_true_filter)/(y_pred_filter + 1)))
+    return torch.mean(torch.abs((y_true_filter - y_pred_filter)/(y_true_filter + 1)))
 
 
 def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT, use_gpu=True,

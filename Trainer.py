@@ -43,7 +43,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
           use_gpu=True, data_dir=Config.DATA_DIR_DEFAULT, logr=Logger(activate=False), model=Config.NETWORK_DEFAULT,
           model_dir=Config.MODEL_DIR_DEFAULT, pretrain=False, metrics_threshold=Config.METRICS_THRESHOLD_DEFAULT,
           total_H=Config.DATA_TOTAL_H, start_H=Config.DATA_START_H, hidden_dim=Config.HIDDEN_DIM_DEFAULT,
-          feat_dim=Config.FEAT_DIM_DEFAULT, query_dim=Config.QUERY_DIM_DEFAULT):
+          feat_dim=Config.FEAT_DIM_DEFAULT, query_dim=Config.QUERY_DIM_DEFAULT,
+          scale_factor_d=Config.SCALE_FACTOR_DEFAULT_D, scale_factor_g=Config.SCALE_FACTOR_DEFAULT_G):
     # Load DataSet
     logr.log('> Loading DataSet from {}\n'.format(data_dir))
     dataset = RSODPDataSet(data_dir, his_rec_num=Config.HISTORICAL_RECORDS_NUM_DEFAULT, time_slot_endurance=Config.TIME_SLOT_ENDURANCE_DEFAULT, total_H=total_H, start_at=start_H)
@@ -76,6 +77,11 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     if device:
         net.to(device)
         logr.log('> Model sent to {}\n'.format(device))
+
+    # Scale Factor
+    if device:
+        scale_factor_d = scale_factor_d.to(device)
+        scale_factor_g = scale_factor_g.to(device)
 
     # Model Saving Directory
     if not os.path.isdir(model_dir):
@@ -121,7 +127,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
             # logr.log(prof.key_averages().table(sort_by="cuda_time_total"))
 
             res_D, res_G = net(record, query, predict_G=predict_G)  # if pretrain, res_G = None
-            loss = criterion_D(res_D, target_D) if pretrain else (criterion_D(res_D, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G) * Config.G_PERCENTAGE_DEFAULT)
+            loss = criterion_D(res_D, target_D / scale_factor_d) if pretrain else (criterion_D(res_D, target_D / scale_factor_d) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G / scale_factor_g) * Config.G_PERCENTAGE_DEFAULT)
 
             loss.backward()
             optimizer.step()
@@ -129,9 +135,9 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
             # Analysis
             with torch.no_grad():
                 train_loss += loss.item()
-                train_rmse += RMSE(res_D, target_D, metrics_threshold).item() if pretrain else ((RMSE(res_D, target_D, metrics_threshold) + RMSE(res_G, target_G, metrics_threshold)) / 2).item()
-                train_mape += MAPE(res_D, target_D, metrics_threshold).item() if pretrain else ((MAPE(res_D, target_D, metrics_threshold) + MAPE(res_G, target_G, metrics_threshold)) / 2).item()
-                train_mae += MAE(res_D, target_D, metrics_threshold).item() if pretrain else ((MAE(res_D, target_D, metrics_threshold) + MAE(res_G, target_G, metrics_threshold)) / 2).item()
+                train_rmse += RMSE(res_D * scale_factor_d, target_D, metrics_threshold).item() if pretrain else ((RMSE(res_D * scale_factor_d, target_D, metrics_threshold) + RMSE(res_G * scale_factor_g, target_G, metrics_threshold)) / 2).item()
+                train_mape += MAPE(res_D * scale_factor_d, target_D, metrics_threshold).item() if pretrain else ((MAPE(res_D * scale_factor_d, target_D, metrics_threshold) + MAPE(res_G * scale_factor_g, target_G, metrics_threshold)) / 2).item()
+                train_mae += MAE(res_D * scale_factor_d, target_D, metrics_threshold).item() if pretrain else ((MAE(res_D * scale_factor_d, target_D, metrics_threshold) + MAE(res_G * scale_factor_g, target_G, metrics_threshold)) / 2).item()
 
             # if i == 0:    # DEBUG
             #     break
@@ -162,12 +168,12 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                         val_record, val_query, val_target_G, val_target_D = batch2device(val_record, val_query, val_target_G, val_target_D, device)
 
                     val_res_D, val_res_G = net(val_record, val_query, predict_G=True)
-                    val_loss = criterion_D(val_res_D, val_target_D) if pretrain else (criterion_D(val_res_D, val_target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(val_res_G, val_target_G) * Config.G_PERCENTAGE_DEFAULT)
+                    val_loss = criterion_D(val_res_D, val_target_D / scale_factor_d) if pretrain else (criterion_D(val_res_D, val_target_D / scale_factor_d) * Config.D_PERCENTAGE_DEFAULT + criterion_G(val_res_G, val_target_G / scale_factor_g) * Config.G_PERCENTAGE_DEFAULT)
 
                     val_loss_total += val_loss.item()
-                    val_rmse += ((RMSE(val_res_D, val_target_D, metrics_threshold) + RMSE(val_res_G, val_target_G, metrics_threshold)) / 2).item()
-                    val_mape += ((MAPE(val_res_D, val_target_D, metrics_threshold) + MAPE(val_res_G, val_target_G, metrics_threshold)) / 2).item()
-                    val_mae += ((MAE(val_res_D, val_target_D, metrics_threshold) + MAE(val_res_G, val_target_G, metrics_threshold)) / 2).item()
+                    val_rmse += ((RMSE(val_res_D * scale_factor_d, val_target_D, metrics_threshold) + RMSE(val_res_G * scale_factor_g, val_target_G, metrics_threshold)) / 2).item()
+                    val_mape += ((MAPE(val_res_D * scale_factor_d, val_target_D, metrics_threshold) + MAPE(val_res_G * scale_factor_g, val_target_G, metrics_threshold)) / 2).item()
+                    val_mae += ((MAE(val_res_D * scale_factor_d, val_target_D, metrics_threshold) + MAE(val_res_G * scale_factor_g, val_target_G, metrics_threshold)) / 2).item()
 
                 val_loss_total /= len(validloader)
                 val_rmse /= len(validloader)
@@ -183,6 +189,10 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
 
         # if epoch_i == 0:    # break
         #     break
+
+    # End Training
+    logr.log('Training finished.\n')
+
 
 # TODO: put these methods into utils
 def filter_with_threshold(x: torch.Tensor, threshold: torch.Tensor):
@@ -236,7 +246,8 @@ def MAPE(y_pred, y_true, threshold=Config.ZERO_TENSOR):
 
 def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT, use_gpu=True,
              data_dir=Config.DATA_DIR_DEFAULT, logr=Logger(activate=False),
-             total_H=Config.DATA_TOTAL_H, start_H=Config.DATA_START_H):
+             total_H=Config.DATA_TOTAL_H, start_H=Config.DATA_START_H,
+             scale_factor_d=Config.SCALE_FACTOR_DEFAULT_D, scale_factor_g=Config.SCALE_FACTOR_DEFAULT_G):
     """
         Evaluate using saved best model (Note that this is a Test API)
         1. Re-evaluate on the validation set
@@ -315,7 +326,8 @@ if __name__ == '__main__':
     parser.add_argument('-hd', '--hidden_dim', type=int, default=Config.HIDDEN_DIM_DEFAULT, help='Specify the hidden dimension, default = {}'.format(Config.HIDDEN_DIM_DEFAULT))
     parser.add_argument('-fd', '--feature_dim', type=int, default=Config.FEAT_DIM_DEFAULT, help='Specify the feature dimension, default = {}'.format(Config.FEAT_DIM_DEFAULT))
     parser.add_argument('-qd', '--query_dim', type=int, default=Config.QUERY_DIM_DEFAULT, help='Specify the query dimension, default = {}'.format(Config.QUERY_DIM_DEFAULT))
-
+    parser.add_argument('-sfd', '--scale_factor_d', type=float, default=Config.SCALE_FACTOR_DEFAULT_D, help='scale factor for model output d, default = {}'.format(Config.SCALE_FACTOR_DEFAULT_D))
+    parser.add_argument('-sfg', '--scale_factor_g', type=float, default=Config.SCALE_FACTOR_DEFAULT_G, help='scale factor for model output g, default = {}'.format(Config.SCALE_FACTOR_DEFAULT_G))
     FLAGS, unparsed = parser.parse_known_args()
 
     # Starts a log file in the specified directory
@@ -329,7 +341,8 @@ if __name__ == '__main__':
               model_dir=FLAGS.model_dir, pretrain=(FLAGS.pretrain == 1),
               metrics_threshold=torch.Tensor([FLAGS.metrics_threshold]),
               total_H=FLAGS.hours, start_H=FLAGS.start_hour, hidden_dim=FLAGS.hidden_dim,
-              feat_dim=FLAGS.feature_dim, query_dim=FLAGS.query_dim)
+              feat_dim=FLAGS.feature_dim, query_dim=FLAGS.query_dim,
+              scale_factor_d=torch.Tensor([FLAGS.scale_factor_d]), scale_factor_g=torch.Tensor([FLAGS.scale_factor_g]))
         logger.close()
     elif working_mode == 'eval':
         eval_file = FLAGS.eval
@@ -340,7 +353,9 @@ if __name__ == '__main__':
             exit(-1)
         # Normal
         evaluate(eval_file, bs=FLAGS.batch_size, num_workers=FLAGS.cores, use_gpu=(FLAGS.gpu == 1),
-                 data_dir=FLAGS.data_dir, logr=logger, total_H=FLAGS.hours, start_H=FLAGS.start_hour)
+                 data_dir=FLAGS.data_dir, logr=logger, total_H=FLAGS.hours, start_H=FLAGS.start_hour,
+                 scale_factor_d=torch.Tensor([FLAGS.scale_factor_d]),
+                 scale_factor_g=torch.Tensor([FLAGS.scale_factor_g]))
         logger.close()
     else:
         sys.stderr.write('Please specify the running mode (train/eval)\n')

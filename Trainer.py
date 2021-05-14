@@ -150,7 +150,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
         time_end_train = time.time()
         total_train_time = (time_end_train - time_start_train)
         train_time_per_sample = total_train_time / len(dataset.train_set)
-        logr.log('Training Round %d: loss = %.4f, time_cost = %.4f sec (%.4f sec per sample), RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' % (epoch_i, train_loss, total_train_time, train_time_per_sample, metrics_threshold_val, train_rmse, metrics_threshold_val, train_mape, metrics_threshold_val, train_mae))
+        logr.log('Training Round %d: loss = %.6f, time_cost = %.4f sec (%.4f sec per sample), RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' % (epoch_i, train_loss, total_train_time, train_time_per_sample, metrics_threshold_val, train_rmse, metrics_threshold_val, train_mape, metrics_threshold_val, train_mae))
 
         # eval_freq: Evaluate on validation set
         if (epoch_i + 1) % eval_freq == 0:
@@ -179,7 +179,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                 val_rmse /= len(validloader)
                 val_mape /= len(validloader)
                 val_mae /= len(validloader)
-                logr.log('!!! Validation : loss = %.4f, RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' % (val_loss_total, metrics_threshold_val, val_rmse, metrics_threshold_val, val_mape, metrics_threshold_val, val_mae))
+                logr.log('!!! Validation : loss = %.6f, RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' % (val_loss_total, metrics_threshold_val, val_rmse, metrics_threshold_val, val_mape, metrics_threshold_val, val_mae))
 
                 if val_loss_total < min_eval_loss:
                     min_eval_loss = val_loss_total

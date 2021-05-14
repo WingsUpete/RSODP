@@ -86,7 +86,7 @@ class PwGaANLayer(nn.Module):
 
             # Message Passing
             g.update_all(self.message_func, self.reduce_func)
-            return g.ndata['h'].reshape(g.batch_size, -1, self.out_dim)
+            return (g.ndata['proj_z'] + g.ndata['h']).reshape(g.batch_size, -1, self.out_dim)
 
 
 class MultiHeadPwGaANLayer(nn.Module):

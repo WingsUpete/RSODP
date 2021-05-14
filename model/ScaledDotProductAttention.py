@@ -38,7 +38,7 @@ class ScaledDotProductAttention(nn.Module):
         norm_scores = F.dropout(norm_scores, 0.1)
 
         output = torch.matmul(norm_scores, proj_V)
-        return output
+        return F.layer_norm(output + F.dropout(embedding_feat, 0.1), normalized_shape=[self.embed_dim])
 
     def forward(self, query_feat, embed_feat_list):
         embed_outputs = [self.apply_scaled_dot_product_attention(query_feat, embed_feat) for embed_feat in embed_feat_list]

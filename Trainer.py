@@ -121,6 +121,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
         train_mae = 0
         time_start_train = time.time()
         for i, batch in enumerate(trainloader):
+            if device.type == 'cuda':
+                torch.cuda.empty_cache()
             record, query, target_G, target_D = batch['record'], batch['query'], batch['target_G'], batch['target_D']
             if device:
                 record, query, target_G, target_D = batch2device(record, query, target_G, target_D, device)

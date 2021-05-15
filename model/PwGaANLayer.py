@@ -102,5 +102,7 @@ class MultiHeadPwGaANLayer(nn.Module):
         head_outs = [attn_head(g) for attn_head in self.heads]
         if self.merge == 'cat':
             return torch.cat(head_outs, dim=-1)
-        else:
+        elif self.merge == 'mean':
             return sum(head_outs) / len(head_outs)
+        else:
+            return torch.cat(head_outs, dim=-1)     # Default: concat

@@ -80,10 +80,12 @@ class TranAttLayer(nn.Module):
         if self.activate_function:
             demands = self.activate_function(demands)
         demands_out = demands.reshape(-1, num_nodes)
+        del num_nodes
 
         if predict_G:
             # Predict Request Graph
             req_gs = self.predict_request_graphs(embed_feat, demands)
+            del demands
             return demands_out, req_gs
         else:
             return demands_out, None

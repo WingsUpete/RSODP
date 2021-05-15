@@ -36,17 +36,25 @@ class SpatAttLayer(nn.Module):
         fg.ndata['v'] = feat
 
         proj_feat = self.proj_fc(feat)
+        del feat
+
         fg.ndata['proj_z'] = proj_feat
         bg.ndata['proj_z'] = proj_feat
         gg.ndata['proj_z'] = proj_feat
+
+        out_proj_feat = proj_feat.reshape(fg.batch_size, -1, self.hidden_dim)
+        del proj_feat
 
         h_fwd = self.fwdSpatAttLayer(fg)
         h_bwd = self.bwdSpatAttLayer(bg)
         h_geo = self.geoSpatAttLayer(gg)
 
-        out_proj_feat = proj_feat.reshape(fg.batch_size, -1, self.hidden_dim)
-
         h = torch.cat([out_proj_feat, h_fwd, h_bwd, h_geo], dim=-1)
+        del out_proj_feat
+        del h_fwd
+        del h_bwd
+        del h_geo
+
         return h
 
 

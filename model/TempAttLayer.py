@@ -23,4 +23,5 @@ class TempAttLayer(nn.Module):
     def forward(self, query_feat, embed_feat_dict):
         rec_embed_list = [self.recScaledDotProductAttention(query_feat, embed_feat_dict[temp_feat]) for temp_feat in TEMP_FEAT_NAMES]
         comb_embed = self.combScaledDotProductAttention(query_feat, rec_embed_list)
+        del rec_embed_list
         return comb_embed

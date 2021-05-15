@@ -2,7 +2,6 @@ import os
 import sys
 import argparse
 import time
-import gc
 
 import torch
 import torch.nn as nn
@@ -123,7 +122,6 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
         time_start_train = time.time()
         for i, batch in enumerate(trainloader):
             if device.type == 'cuda':
-                gc.collect()
                 torch.cuda.empty_cache()
             record, query, target_G, target_D = batch['record'], batch['query'], batch['target_G'], batch['target_D']
             if device:

@@ -32,8 +32,8 @@ def occumpy_mem(cuda_device):
     total, used = check_mem(cuda_device)
     total = int(total)
     used = int(used)
-    max_mem = int(total * 0.9 * 0.6)
-    block_mem = max_mem - used
+    max_mem = int(total * 0.9)
+    block_mem = int((max_mem - used) * 0.6)
     x = torch.cuda.FloatTensor(256, 1024, block_mem)
     del x
 

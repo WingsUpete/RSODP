@@ -103,8 +103,8 @@ class MultiHeadPwGaANLayer(nn.Module):
         batch_g = dgl.batch([g for i in range(self.num_heads)])
         head_outs = self.pwGaAN(batch_g)
         if self.merge == 'cat':
-            return head_outs.permute(1, 2, 0, 3).reshape(head_outs.shape[-3], head_outs[-2], -1)
+            return head_outs.permute(1, 2, 0, 3).reshape(head_outs.shape[-3], head_outs.shape[-2], -1)
         elif self.merge == 'mean':
             return torch.mean(head_outs, dim=0)
         else:
-            return head_outs.permute(1, 2, 0, 3).reshape(head_outs.shape[-3], head_outs[-2], -1)    # Default: concat
+            return head_outs.permute(1, 2, 0, 3).reshape(head_outs.shape[-3], head_outs.shape[-2], -1)  # Default: cat

@@ -127,7 +127,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
             # logr.log(prof.key_averages().table(sort_by="cuda_time_total"))
 
             res_D, res_G = net(record, query, predict_G=predict_G)  # if pretrain, res_G = None
-            loss = criterion_D(res_D, target_D / scale_factor_d) if pretrain else (criterion_D(res_D, target_D / scale_factor_d) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G / scale_factor_g) * Config.G_PERCENTAGE_DEFAULT)
+            loss = criterion_D(res_D * scale_factor_d, target_D) if pretrain else (criterion_D(res_D * scale_factor_d, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G * scale_factor_g, target_G) * Config.G_PERCENTAGE_DEFAULT)
 
             loss.backward()
             optimizer.step()
@@ -168,7 +168,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                         val_record, val_query, val_target_G, val_target_D = batch2device(val_record, val_query, val_target_G, val_target_D, device)
 
                     val_res_D, val_res_G = net(val_record, val_query, predict_G=True)
-                    val_loss = criterion_D(val_res_D, val_target_D / scale_factor_d) if pretrain else (criterion_D(val_res_D, val_target_D / scale_factor_d) * Config.D_PERCENTAGE_DEFAULT + criterion_G(val_res_G, val_target_G / scale_factor_g) * Config.G_PERCENTAGE_DEFAULT)
+                    val_loss = criterion_D(val_res_D * scale_factor_d, val_target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(val_res_G * scale_factor_g, val_target_G) * Config.G_PERCENTAGE_DEFAULT
 
                     val_loss_total += val_loss.item()
                     val_rmse += ((RMSE(val_res_D * scale_factor_d, val_target_D, metrics_threshold) + RMSE(val_res_G * scale_factor_g, val_target_G, metrics_threshold)) / 2).item()

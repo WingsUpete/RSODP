@@ -23,3 +23,6 @@ data/
 **/GeoGraph.dgl
 **/FBGraphs.dgl
 **/GDVQ.npy
+
+# Results
+res/

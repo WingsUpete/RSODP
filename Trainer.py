@@ -22,6 +22,22 @@ from model import Gallat, GallatExt
 import Config
 
 
+def check_mem(cuda_device):
+    devices_info = os.popen('"nvidia-smi" --query-gpu=memory.total,memory.used --format=csv,nounits,noheader').read().strip().split("\n")
+    total, used = devices_info[int(cuda_device)].split(',')
+    return total, used
+
+
+def occumpy_mem(cuda_device):
+    total, used = check_mem(cuda_device)
+    total = int(total)
+    used = int(used)
+    max_mem = int(total * 0.9 * 0.6)
+    block_mem = max_mem - used
+    x = torch.cuda.FloatTensor(256, 1024, block_mem)
+    del x
+
+
 def batch2device(record: dict, query: torch.Tensor, target_G: torch.Tensor, target_D: torch.Tensor, device):
     """ Transfer all sample data into the device (cpu/gpu) """
     # Transfer record
@@ -111,6 +127,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     logr.log('------------------------------------------------------------------------\n')
 
     min_eval_loss = float('inf')
+
+    occumpy_mem('0')
 
     for epoch_i in range(ep):
         # train one round

@@ -59,16 +59,25 @@ class TranAttLayer(nn.Module):
         el_exp = el.repeat(1, 1, num_nodes)
         er_exp = torch.transpose(er, -2, -1).repeat(1, num_nodes, 1)
         A = el_exp + er_exp
+        del proj_embed_feat
+        del el
+        del er
+        del el_exp
+        del er_exp
 
         A = F.leaky_relu(A)
         Q = F.softmax(A, dim=-1)
         Q = F.dropout(Q, 0.1)
+        del A
 
         # Expand D as well
         rel_D = demands.repeat(1, 1, num_nodes)
 
         # Get graph
         G = Q * rel_D
+        del Q
+        del rel_D
+        del num_nodes
 
         return G
 

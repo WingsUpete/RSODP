@@ -102,6 +102,7 @@ class MultiHeadPwGaANLayer(nn.Module):
     def forward(self, g: dgl.DGLGraph):
         batch_g = dgl.batch([g for i in range(self.num_heads)])
         head_outs = self.pwGaAN(batch_g)
+        del batch_g
         if self.merge == 'cat':
             return head_outs.permute(1, 2, 0, 3).reshape(head_outs.shape[-3], head_outs.shape[-2], -1)
         elif self.merge == 'mean':

@@ -50,6 +50,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     dataset = RSODPDataSet(data_dir, his_rec_num=Config.HISTORICAL_RECORDS_NUM_DEFAULT, time_slot_endurance=Config.TIME_SLOT_ENDURANCE_DEFAULT, total_H=total_H, start_at=start_H)
     trainloader = GraphDataLoader(dataset.train_set, batch_size=bs, shuffle=True, num_workers=num_workers)
     validloader = GraphDataLoader(dataset.valid_set, batch_size=bs, shuffle=False, num_workers=num_workers)
+    logr.log('> Total Hours: {}, staring from {}\n'.format(total_H, start_H))
     logr.log('> Training batches: {}, Validation batches: {}\n'.format(len(trainloader), len(validloader)))
 
     # Initialize the Model
@@ -58,6 +59,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     net = Gallat(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim)
     if model == 'Gallat':
         net = Gallat(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim)
+    logr.log('> Model Structure:\n{}\n'.format(net))
 
     # Select Optimizer
     logr.log('> Constructing the Optimizer: {}\n'.format(opt))
@@ -95,6 +97,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     # Summarize Info
     logr.log('\nlearning_rate = {}, epochs = {}, num_workers = {}\n'.format(lr, ep, num_workers))
     logr.log('eval_freq = {}, batch_size = {}, optimizer = {}\n'.format(eval_freq, bs, opt))
+    logr.log('scaling Factor for: d - %.2f, g - %.2f' % (scale_factor_d.item(), scale_factor_g.item()))
 
     # Start Training
     logr.log('\nStart Training!\n')

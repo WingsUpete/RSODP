@@ -2,6 +2,7 @@ import os
 import sys
 import argparse
 import time
+import gc
 
 import torch
 import torch.nn as nn
@@ -20,22 +21,6 @@ from RSODPDataSet import RSODPDataSet
 from model import Gallat, GallatExt
 
 import Config
-
-
-def check_mem(cuda_device):
-    devices_info = os.popen('"nvidia-smi" --query-gpu=memory.total,memory.used --format=csv,nounits,noheader').read().strip().split("\n")
-    total, used = devices_info[int(cuda_device)].split(',')
-    return total, used
-
-
-def occumpy_mem(cuda_device):
-    total, used = check_mem(cuda_device)
-    total = int(total)
-    used = int(used)
-    max_mem = int(total * 0.9)
-    block_mem = int((max_mem - used) * 0.6)
-    x = torch.cuda.FloatTensor(256, 1024, block_mem)
-    del x
 
 
 def batch2device(record: dict, query: torch.Tensor, target_G: torch.Tensor, target_D: torch.Tensor, device):
@@ -128,8 +113,6 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
 
     min_eval_loss = float('inf')
 
-    occumpy_mem('0')
-
     for epoch_i in range(ep):
         # train one round
         net.train()
@@ -140,6 +123,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
         time_start_train = time.time()
         for i, batch in enumerate(trainloader):
             if device.type == 'cuda':
+                gc.collect()
                 torch.cuda.empty_cache()
             record, query, target_G, target_D = batch['record'], batch['query'], batch['target_G'], batch['target_D']
             if device:

@@ -36,8 +36,14 @@ class Gallat(nn.Module):
         for temp_feat in TEMP_FEAT_NAMES:
             spat_embed_dict[temp_feat] = [self.spatAttLayer(fg, bg, gg) for (fg, bg, gg) in record[temp_feat]]
 
+        if query.device.type == 'cuda':
+            torch.cuda.empty_cache()
+
         # Extract temporal features
         temp_embed = self.tempAttLayer(query, spat_embed_dict)
+
+        if query.device.type == 'cuda':
+            torch.cuda.empty_cache()
 
         # Transferring features to perform predictions
         res = self.tranAttLayer(temp_embed, predict_G)

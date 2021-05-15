@@ -17,7 +17,7 @@ sys.stderr = stderr
 
 from utils import Logger, RMSE, MAE, MAPE
 from RSODPDataSet import RSODPDataSet
-from model import Gallat
+from model import Gallat, GallatExt
 
 import Config
 
@@ -64,6 +64,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
         logr.log('> Initializing the Training Model: {}, Train type = {}\n'.format(model, train_type))
         if model == 'Gallat':
             net = Gallat(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim)
+        elif model == 'GallatExt':
+            net = GallatExt(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_heads=3)
     logr.log('> Model Structure:\n{}\n'.format(net))
 
     # Select Optimizer

@@ -15,7 +15,7 @@ from dgl.dataloading import GraphDataLoader
 sys.stderr.close()
 sys.stderr = stderr
 
-from utils import Logger
+from utils import Logger, RMSE, MAE, MAPE
 from RSODPDataSet import RSODPDataSet
 from model import Gallat
 
@@ -200,56 +200,6 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
 
     # End Training
     logr.log('Training finished.\n')
-
-
-# TODO: put these methods into utils
-def filter_with_threshold(x: torch.Tensor, threshold: torch.Tensor):
-    """
-    Filter out values below the threshold (they will become the threshold)
-    :param x: a tensor
-    :param threshold: single-value tensor containing the threshold
-    :return: filtered tensor
-    """
-    return torch.max(x, threshold)
-
-
-def RMSE(y_pred: torch.Tensor, y_true: torch.Tensor, threshold=Config.ZERO_TENSOR):
-    """
-    RMSE (Root Mean Squared Error)
-    :param y_pred: prediction tensor
-    :param y_true: target tensor
-    :param threshold: single-value tensor - only values not below the threshold are considered (if threshold=3, result is RMSE-3)
-    :return: RMSE-threshold
-    """
-    y_pred_filter = filter_with_threshold(y_pred, threshold)
-    y_true_filter = filter_with_threshold(y_true, threshold)
-    return torch.sqrt(torch.mean(torch.pow((y_true_filter - y_pred_filter), 2)))
-
-
-def MAE(y_pred, y_true, threshold=Config.ZERO_TENSOR):
-    """
-    MAE (Mean Absolute Error)
-    :param y_pred: prediction tensor
-    :param y_true: target tensor
-    :param threshold: single-value tensor - only values not below the threshold are considered (if threshold=3, result is MAE-3)
-    :return: MAE-threshold
-    """
-    y_pred_filter = filter_with_threshold(y_pred, threshold)
-    y_true_filter = filter_with_threshold(y_true, threshold)
-    return torch.mean(torch.abs(y_true_filter - y_pred_filter))
-
-
-def MAPE(y_pred, y_true, threshold=Config.ZERO_TENSOR):
-    """
-    MAPE (Mean Absolute Percentage Error)
-    :param y_pred: prediction tensor
-    :param y_true: target tensor
-    :param threshold: single-value tensor - only values not below the threshold are considered (if threshold=3, result is MAPE-3)
-    :return: MAPE-threshold
-    """
-    y_pred_filter = filter_with_threshold(y_pred, threshold)
-    y_true_filter = filter_with_threshold(y_true, threshold)
-    return torch.mean(torch.abs((y_true_filter - y_pred_filter)/(y_true_filter + 1)))
 
 
 def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT, use_gpu=True,

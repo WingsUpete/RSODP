@@ -8,16 +8,17 @@ from .PwGaANLayer import MultiHeadPwGaANLayer
 
 
 class SpatAttLayer(nn.Module):
-    def __init__(self, feat_dim, hidden_dim, num_heads, gate=False):
+    def __init__(self, feat_dim, hidden_dim, num_heads, gate=False, merge='cat'):
         super(SpatAttLayer, self).__init__()
         self.feat_dim = feat_dim
         self.hidden_dim = hidden_dim
         self.num_heads = num_heads
         self.gate = gate
+        self.merge = merge
 
-        self.fwdSpatAttLayer = MultiHeadPwGaANLayer(self.feat_dim, self.hidden_dim, self.num_heads, gate=self.gate)
-        self.bwdSpatAttLayer = MultiHeadPwGaANLayer(self.feat_dim, self.hidden_dim, self.num_heads, gate=self.gate)
-        self.geoSpatAttLayer = MultiHeadPwGaANLayer(self.feat_dim, self.hidden_dim, self.num_heads, gate=self.gate)
+        self.fwdSpatAttLayer = MultiHeadPwGaANLayer(self.feat_dim, self.hidden_dim, self.num_heads, gate=self.gate, merge=self.merge)
+        self.bwdSpatAttLayer = MultiHeadPwGaANLayer(self.feat_dim, self.hidden_dim, self.num_heads, gate=self.gate, merge=self.merge)
+        self.geoSpatAttLayer = MultiHeadPwGaANLayer(self.feat_dim, self.hidden_dim, self.num_heads, gate=self.gate, merge=self.merge)
         self.proj_fc = nn.Linear(self.feat_dim, self.hidden_dim, bias=False)
 
         self.reset_parameters()

@@ -18,8 +18,8 @@ class Gallat(nn.Module):
         self.query_dim = query_dim
         self.hidden_dim = hidden_dim
 
-        self.spat_embed_dim = 4 * hidden_dim    # Embedding dimension after spatial feature extraction
-        self.temp_embed_dim = 4 * hidden_dim    # Embedding dimension after temporal feature extraction
+        self.spat_embed_dim = 4 * self.hidden_dim   # Embedding dimension after spatial feature extraction
+        self.temp_embed_dim = self.spat_embed_dim   # Embedding dimension after temporal feature extraction
 
         # Spatial Attention Layer
         self.spatAttLayer = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=1, gate=False)

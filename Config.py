@@ -14,7 +14,7 @@ USE_GPU_DEFAULT = 1
 NETWORK_DEFAULT = 'Gallat'
 MODE_DEFAULT = 'train'
 EVAL_DEFAULT = 'eval.pt'   # should be a model file name
-MODEL_DIR_DEFAULT = 'model_save/'
+MODEL_SAVE_DIR_DEFAULT = 'model_save/'
 
 MAX_NORM_DEFAULT = 10.0
 FEAT_DIM_DEFAULT = 13

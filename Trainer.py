@@ -41,7 +41,7 @@ def batch2device(record: dict, query: torch.Tensor, target_G: torch.Tensor, targ
 def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Config.MAX_EPOCHS_DEFAULT,
           eval_freq=Config.EVAL_FREQ_DEFAULT, opt=Config.OPTIMIZER_DEFAULT, num_workers=Config.WORKERS_DEFAULT,
           use_gpu=True, data_dir=Config.DATA_DIR_DEFAULT, logr=Logger(activate=False), model=Config.NETWORK_DEFAULT,
-          model_dir=Config.MODEL_DIR_DEFAULT, pretrain=False, metrics_threshold=Config.METRICS_THRESHOLD_DEFAULT,
+          model_save_dir=Config.MODEL_SAVE_DIR_DEFAULT, pretrain=False, metrics_threshold=Config.METRICS_THRESHOLD_DEFAULT,
           total_H=Config.DATA_TOTAL_H, start_H=Config.DATA_START_H, hidden_dim=Config.HIDDEN_DIM_DEFAULT,
           feat_dim=Config.FEAT_DIM_DEFAULT, query_dim=Config.QUERY_DIM_DEFAULT,
           scale_factor_d=Config.SCALE_FACTOR_DEFAULT_D, scale_factor_g=Config.SCALE_FACTOR_DEFAULT_G):
@@ -86,8 +86,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
         scale_factor_g = scale_factor_g.to(device)
 
     # Model Saving Directory
-    if not os.path.isdir(model_dir):
-        os.mkdir(model_dir)
+    if not os.path.isdir(model_save_dir):
+        os.mkdir(model_save_dir)
 
     # Metrics
     metrics_threshold_val = metrics_threshold.item()
@@ -186,7 +186,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
 
                 if val_loss_total < min_eval_loss:
                     min_eval_loss = val_loss_total
-                    model_name = os.path.join(model_dir, '{}.pth'.format(logr.time_tag))
+                    model_name = os.path.join(model_save_dir, '{}.pth'.format(logr.time_tag))
                     torch.save(net, model_name)
                     logr.log('Model: {} has been saved since it achieves smaller loss.\n'.format(model_name))
 
@@ -321,7 +321,7 @@ if __name__ == '__main__':
     parser.add_argument('-net', '--network', type=str, default=Config.NETWORK_DEFAULT,  help='Specify which model/network to use, default = {}'.format(Config.NETWORK_DEFAULT))
     parser.add_argument('-m', '--mode', type=str, default=Config.MODE_DEFAULT, help='Specify which mode the discriminator runs in (train, eval), default = {}'.format(Config.MODE_DEFAULT))
     parser.add_argument('-e', '--eval', type=str, default=Config.EVAL_DEFAULT, help='Specify the location of saved network to be loaded for evaluation, default = {}'.format(Config.EVAL_DEFAULT))
-    parser.add_argument('-md', '--model_dir', type=str, default=Config.MODEL_DIR_DEFAULT, help='Specify the location of network to be saved, default = {}'.format(Config.MODEL_DIR_DEFAULT))
+    parser.add_argument('-md', '--model_save_dir', type=str, default=Config.MODEL_SAVE_DIR_DEFAULT, help='Specify the location of network to be saved, default = {}'.format(Config.MODEL_SAVE_DIR_DEFAULT))
     parser.add_argument('-pre', '--pretrain', type=int, default=Config.PRETRAIN_DEFAULT, help='Specify whether to pretrain the model (only predict demands), default = {}'.format(Config.PRETRAIN_DEFAULT))
     parser.add_argument('-mt', '--metrics_threshold', type=int, default=Config.METRICS_THRESHOLD_DEFAULT, help='Specify the metrics threshold, default = {}'.format(Config.METRICS_THRESHOLD_DEFAULT))
     parser.add_argument('-th', '--hours', type=int, default=Config.DATA_TOTAL_H, help='Specify the number of hours for data, default = {}'.format(Config.DATA_TOTAL_H))
@@ -341,7 +341,7 @@ if __name__ == '__main__':
         train(lr=FLAGS.learning_rate, bs=FLAGS.batch_size, ep=FLAGS.max_epochs,
               eval_freq=FLAGS.eval_freq, opt=FLAGS.optimizer, num_workers=FLAGS.cores,
               use_gpu=(FLAGS.gpu == 1), data_dir=FLAGS.data_dir, logr=logger, model=FLAGS.network,
-              model_dir=FLAGS.model_dir, pretrain=(FLAGS.pretrain == 1),
+              model_save_dir=FLAGS.model_save_dir, pretrain=(FLAGS.pretrain == 1),
               metrics_threshold=torch.Tensor([FLAGS.metrics_threshold]),
               total_H=FLAGS.hours, start_H=FLAGS.start_hour, hidden_dim=FLAGS.hidden_dim,
               feat_dim=FLAGS.feature_dim, query_dim=FLAGS.query_dim,

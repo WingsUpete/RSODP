@@ -31,7 +31,10 @@ TEMP_FEAT_NAMES = ['St', 'Sp', 'Stpm', 'Stpp']
 D_PERCENTAGE_DEFAULT = 0.8
 G_PERCENTAGE_DEFAULT = 0.2
 
-PRETRAIN_DEFAULT = 0
+TRAIN_TYPES = ['normal', 'pretrain', 'retrain']
+TRAIN_TYPE_DEFAULT = 'normal'
+
+RETRAIN_MODEL_PATH_DEFAULT = 'res/Gallat_pretrain/20210514_07_17_13.pth'
 
 DATA_TOTAL_H = -1
 DATA_START_H = -1

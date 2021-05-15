@@ -5,10 +5,12 @@ import torch.nn.functional as F
 
 
 class PwGaANLayer(nn.Module):
-    def __init__(self, in_dim, out_dim, gate=False):
+    def __init__(self, in_dim, out_dim, num_heads=1, gate=False):
         super(PwGaANLayer, self).__init__()
         self.in_dim = in_dim
         self.out_dim = out_dim
+
+        self.num_heads = num_heads
 
         # Shared Weight W_a for AttentionNet
         self.Wa = nn.Linear(self.in_dim, self.out_dim, bias=False)
@@ -86,23 +88,23 @@ class PwGaANLayer(nn.Module):
 
             # Message Passing
             g.update_all(self.message_func, self.reduce_func)
-            return (g.ndata['proj_z'] + g.ndata['h']).reshape(g.batch_size, -1, self.out_dim)
+            return (g.ndata['proj_z'] + g.ndata['h']).reshape(self.num_heads, int(g.batch_size / self.num_heads), -1, self.out_dim)
 
 
 class MultiHeadPwGaANLayer(nn.Module):
     def __init__(self, in_dim, out_dim, num_heads, merge='cat', gate=False):
         super(MultiHeadPwGaANLayer, self).__init__()
         self.gate = gate
-        self.heads = nn.ModuleList()
-        for i in range(num_heads):
-            self.heads.append(PwGaANLayer(in_dim, out_dim, self.gate))
+        self.num_heads = num_heads
+        self.pwGaAN = PwGaANLayer(in_dim, out_dim, num_heads=self.num_heads, gate=self.gate)
         self.merge = merge
 
     def forward(self, g: dgl.DGLGraph):
-        head_outs = [attn_head(g) for attn_head in self.heads]
+        batch_g = dgl.batch([g for i in range(self.num_heads)])
+        head_outs = self.pwGaAN(batch_g)
         if self.merge == 'cat':
-            return torch.cat(head_outs, dim=-1)
+            return head_outs.permute(1, 2, 0, 3).reshape(head_outs.shape[-3], head_outs[-2], -1)
         elif self.merge == 'mean':
-            return sum(head_outs) / len(head_outs)
+            return torch.mean(head_outs, dim=0)
         else:
-            return torch.cat(head_outs, dim=-1)     # Default: concat
+            return head_outs.permute(1, 2, 0, 3).reshape(head_outs.shape[-3], head_outs[-2], -1)    # Default: concat

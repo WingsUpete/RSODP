@@ -103,4 +103,4 @@ class MultiHeadPwGaANLayer(nn.Module):
         if self.merge == 'cat':
             return torch.cat(head_outs, dim=-1)
         else:
-            return torch.mean(sum(head_outs) / len(head_outs))
+            return sum(head_outs) / len(head_outs)

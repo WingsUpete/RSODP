@@ -45,7 +45,7 @@ class ScaledDotProductAttention(nn.Module):
         if self.merge == 'sum':
             return sum(embed_outputs)
         elif self.merge == 'mean':
-            return torch.mean(sum(embed_outputs) / len(embed_outputs))
+            return sum(embed_outputs) / len(embed_outputs)
         elif self.merge == 'cat':
             return torch.cat(embed_outputs, dim=-1)
         else:   # Default: sum, as Gallat

@@ -6,7 +6,7 @@ from datetime import datetime
 import sys
 import os
 
-LOGGING_FOLDER = '../log'
+LOGGING_FOLDER = 'log/'
 if not os.path.isdir(LOGGING_FOLDER):
     os.mkdir(LOGGING_FOLDER)
 

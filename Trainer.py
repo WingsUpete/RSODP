@@ -147,9 +147,9 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
             # Analysis
             with torch.no_grad():
                 train_loss += loss.item()
-                train_rmse += ((RMSE(res_D * scale_factor_d, target_D, metrics_threshold) + RMSE(res_G * scale_factor_g, target_G, metrics_threshold)) / 2).item() if predict_G else RMSE(res_D * scale_factor_d, target_D, metrics_threshold).item()
-                train_mape += ((MAPE(res_D * scale_factor_d, target_D, metrics_threshold) + MAPE(res_G * scale_factor_g, target_G, metrics_threshold)) / 2).item() if predict_G else MAPE(res_D * scale_factor_d, target_D, metrics_threshold).item()
-                train_mae += ((MAE(res_D * scale_factor_d, target_D, metrics_threshold) + MAE(res_G * scale_factor_g, target_G, metrics_threshold)) / 2).item() if predict_G else MAE(res_D * scale_factor_d, target_D, metrics_threshold).item()
+                train_rmse += (RMSE(res_D * scale_factor_d, target_D, metrics_threshold) * Config.D_PERCENTAGE_DEFAULT + RMSE(res_G * scale_factor_g, target_G, metrics_threshold) * Config.G_PERCENTAGE_DEFAULT).item() if predict_G else RMSE(res_D * scale_factor_d, target_D, metrics_threshold).item()
+                train_mape += (MAPE(res_D * scale_factor_d, target_D, metrics_threshold) * Config.D_PERCENTAGE_DEFAULT + MAPE(res_G * scale_factor_g, target_G, metrics_threshold) * Config.G_PERCENTAGE_DEFAULT).item() if predict_G else MAPE(res_D * scale_factor_d, target_D, metrics_threshold).item()
+                train_mae += (MAE(res_D * scale_factor_d, target_D, metrics_threshold) * Config.D_PERCENTAGE_DEFAULT + MAE(res_G * scale_factor_g, target_G, metrics_threshold) * Config.G_PERCENTAGE_DEFAULT).item() if predict_G else MAE(res_D * scale_factor_d, target_D, metrics_threshold).item()
 
             # if i == 0:    # DEBUG
             #     break
@@ -183,9 +183,9 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                     val_loss = criterion_D(val_res_D * scale_factor_d, val_target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(val_res_G * scale_factor_g, val_target_G) * Config.G_PERCENTAGE_DEFAULT
 
                     val_loss_total += val_loss.item()
-                    val_rmse += ((RMSE(val_res_D * scale_factor_d, val_target_D, metrics_threshold) + RMSE(val_res_G * scale_factor_g, val_target_G, metrics_threshold)) / 2).item()
-                    val_mape += ((MAPE(val_res_D * scale_factor_d, val_target_D, metrics_threshold) + MAPE(val_res_G * scale_factor_g, val_target_G, metrics_threshold)) / 2).item()
-                    val_mae += ((MAE(val_res_D * scale_factor_d, val_target_D, metrics_threshold) + MAE(val_res_G * scale_factor_g, val_target_G, metrics_threshold)) / 2).item()
+                    val_rmse += (RMSE(val_res_D * scale_factor_d, val_target_D, metrics_threshold) * Config.D_PERCENTAGE_DEFAULT + RMSE(val_res_G * scale_factor_g, val_target_G, metrics_threshold) * Config.G_PERCENTAGE_DEFAULT).item()
+                    val_mape += (MAPE(val_res_D * scale_factor_d, val_target_D, metrics_threshold) * Config.D_PERCENTAGE_DEFAULT + MAPE(val_res_G * scale_factor_g, val_target_G, metrics_threshold) * Config.G_PERCENTAGE_DEFAULT).item()
+                    val_mae += (MAE(val_res_D * scale_factor_d, val_target_D, metrics_threshold) * Config.D_PERCENTAGE_DEFAULT + MAE(val_res_G * scale_factor_g, val_target_G, metrics_threshold) * Config.G_PERCENTAGE_DEFAULT).item()
 
                 val_loss_total /= len(validloader)
                 val_rmse /= len(validloader)
@@ -261,12 +261,12 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
             val_res_D, val_res_G = net(val_record, val_query, predict_G=True)
 
             for mi in range(num_metrics_threshold):     # for the (mi)th threshold
-                metrics_res['Demand']['RMSE'][mi] += RMSE(val_res_D, val_target_D, metrics_thresholds[mi]).item()
-                metrics_res['Demand']['MAPE'][mi] += MAPE(val_res_D, val_target_D, metrics_thresholds[mi]).item()
-                metrics_res['Demand']['MAE'][mi] += MAE(val_res_D, val_target_D, metrics_thresholds[mi]).item()
-                metrics_res['OD']['RMSE'][mi] += RMSE(val_res_G, val_target_G, metrics_thresholds[mi]).item()
-                metrics_res['OD']['MAPE'][mi] += MAPE(val_res_G, val_target_G, metrics_thresholds[mi]).item()
-                metrics_res['OD']['MAE'][mi] += MAE(val_res_G, val_target_G, metrics_thresholds[mi]).item()
+                metrics_res['Demand']['RMSE'][mi] += RMSE(val_res_D * scale_factor_d, val_target_D, metrics_thresholds[mi]).item()
+                metrics_res['Demand']['MAPE'][mi] += MAPE(val_res_D * scale_factor_d, val_target_D, metrics_thresholds[mi]).item()
+                metrics_res['Demand']['MAE'][mi] += MAE(val_res_D * scale_factor_d, val_target_D, metrics_thresholds[mi]).item()
+                metrics_res['OD']['RMSE'][mi] += RMSE(val_res_G * scale_factor_g, val_target_G, metrics_thresholds[mi]).item()
+                metrics_res['OD']['MAPE'][mi] += MAPE(val_res_G * scale_factor_g, val_target_G, metrics_thresholds[mi]).item()
+                metrics_res['OD']['MAE'][mi] += MAE(val_res_G * scale_factor_g, val_target_G, metrics_thresholds[mi]).item()
 
         for metrics_for_what in metrics_res:
             for metrics in metrics_res[metrics_for_what]:
@@ -302,12 +302,12 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
                 test_res_D, test_res_G = net(test_record, test_query, predict_G=True)
 
                 for mi in range(num_metrics_threshold):  # for the (mi)th threshold
-                    metrics_res['Demand']['RMSE'][mi] += RMSE(test_res_D, test_target_D, metrics_thresholds[mi]).item()
-                    metrics_res['Demand']['MAPE'][mi] += MAPE(test_res_D, test_target_D, metrics_thresholds[mi]).item()
-                    metrics_res['Demand']['MAE'][mi] += MAE(test_res_D, test_target_D, metrics_thresholds[mi]).item()
-                    metrics_res['OD']['RMSE'][mi] += RMSE(test_res_G, test_target_G, metrics_thresholds[mi]).item()
-                    metrics_res['OD']['MAPE'][mi] += MAPE(test_res_G, test_target_G, metrics_thresholds[mi]).item()
-                    metrics_res['OD']['MAE'][mi] += MAE(test_res_G, test_target_G, metrics_thresholds[mi]).item()
+                    metrics_res['Demand']['RMSE'][mi] += RMSE(test_res_D * scale_factor_d, test_target_D, metrics_thresholds[mi]).item()
+                    metrics_res['Demand']['MAPE'][mi] += MAPE(test_res_D * scale_factor_d, test_target_D, metrics_thresholds[mi]).item()
+                    metrics_res['Demand']['MAE'][mi] += MAE(test_res_D * scale_factor_d, test_target_D, metrics_thresholds[mi]).item()
+                    metrics_res['OD']['RMSE'][mi] += RMSE(test_res_G * scale_factor_g, test_target_G, metrics_thresholds[mi]).item()
+                    metrics_res['OD']['MAPE'][mi] += MAPE(test_res_G * scale_factor_g, test_target_G, metrics_thresholds[mi]).item()
+                    metrics_res['OD']['MAE'][mi] += MAE(test_res_G * scale_factor_g, test_target_G, metrics_thresholds[mi]).item()
 
             for metrics_for_what in metrics_res:
                 for metrics in metrics_res[metrics_for_what]:

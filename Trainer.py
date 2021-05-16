@@ -203,7 +203,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
         #     break
 
     # End Training
-    logr.log('Training finished.\n')
+    logr.log('> Training finished.\n')
 
 
 def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT, use_gpu=True,
@@ -217,8 +217,9 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
         The evaluation metrics include RMSE, MAPE, MAE
     """
     # Load Model
-    logr.log('Loading {}\n'.format(model_name))
+    logr.log('> Loading {}\n'.format(model_name))
     net = torch.load(model_name)
+    logr.log('> Model Structure:\n{}\n'.format(net))
 
     # CUDA if needed
     device = torch.device('cuda:0' if (use_gpu and torch.cuda.is_available()) else 'cpu')
@@ -236,29 +237,93 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
     testloader = GraphDataLoader(dataset.test_set, batch_size=bs, shuffle=False, num_workers=num_workers)
     logr.log('> Validation batches: {}, Test batches: {}\n'.format(len(validloader), len(testloader)))
 
-    # # 1.
-    # net.eval()
-    # val_rmse = 0
-    # val_mape = 0
-    # val_mae = 0
-    # if device.type == 'cuda':
-    #     torch.cuda.empty_cache()
-    # with torch.no_grad():
-    #     for j, val_batch in enumerate(validloader):
-    #         val_record, val_query, val_target_G, val_target_D = val_batch['record'], val_batch['query'], val_batch['target_G'], val_batch['target_D']
-    #         if device:
-    #             val_record, val_query, al_target_G, val_target_D = batch2device(val_record, val_query, val_target_G, val_target_D, device)
-    #
-    #         val_res_D, val_res_G = net(val_record, val_query)
-    #
-    #         val_rmse += ((RMSE(val_res_D, val_target_D, metrics_threshold) + RMSE(val_res_G, val_target_G, metrics_threshold)) / 2).item()
-    #         val_mape += ((MAPE(val_res_D, val_target_D, metrics_threshold) + MAPE(val_res_G, val_target_G, metrics_threshold)) / 2).item()
-    #         val_mae += ((MAE(val_res_D, val_target_D, metrics_threshold) + MAE(val_res_G, val_target_G, metrics_threshold)) / 2).item()
-    #
-    #     val_rmse /= len(validloader)
-    #     val_mape /= len(validloader)
-    #     val_mae /= len(validloader)
-    #     logr.log('!!! Validation : loss = %.4f, RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' % (val_loss_total, metrics_threshold_val, val_rmse, metrics_threshold_val, val_mape, metrics_threshold_val, val_mae))
+    # 1.
+    net.eval()
+    # Metrics with thresholds
+    num_metrics_threshold = len(Config.EVAL_METRICS_THRESHOLD_SET)
+    metrics_res = {'Demand': {}, 'OD': {}}
+    for metrics_for_what in metrics_res:
+        metrics_res[metrics_for_what] = {
+            'RMSE': torch.zeros(num_metrics_threshold),
+            'MAPE': torch.zeros(num_metrics_threshold),
+            'MAE': torch.zeros(num_metrics_threshold),
+        }
+    metrics_thresholds = [torch.Tensor([threshold]).to(device) for threshold in Config.EVAL_METRICS_THRESHOLD_SET]
+    # Clean GPU memory
+    if device.type == 'cuda':
+        torch.cuda.empty_cache()
+    with torch.no_grad():
+        for j, val_batch in enumerate(validloader):
+            val_record, val_query, val_target_G, val_target_D = val_batch['record'], val_batch['query'], val_batch['target_G'], val_batch['target_D']
+            if device:
+                val_record, val_query, val_target_G, val_target_D = batch2device(val_record, val_query, val_target_G, val_target_D, device)
+
+            val_res_D, val_res_G = net(val_record, val_query, predict_G=True)
+
+            for mi in range(num_metrics_threshold):     # for the (mi)th threshold
+                metrics_res['Demand']['RMSE'][mi] += RMSE(val_res_D, val_target_D, metrics_thresholds[mi]).item()
+                metrics_res['Demand']['MAPE'][mi] += MAPE(val_res_D, val_target_D, metrics_thresholds[mi]).item()
+                metrics_res['Demand']['MAE'][mi] += MAE(val_res_D, val_target_D, metrics_thresholds[mi]).item()
+                metrics_res['OD']['RMSE'][mi] += RMSE(val_res_G, val_target_G, metrics_thresholds[mi]).item()
+                metrics_res['OD']['MAPE'][mi] += MAPE(val_res_G, val_target_G, metrics_thresholds[mi]).item()
+                metrics_res['OD']['MAE'][mi] += MAE(val_res_G, val_target_G, metrics_thresholds[mi]).item()
+
+        for metrics_for_what in metrics_res:
+            for metrics in metrics_res[metrics_for_what]:
+                metrics_res[metrics_for_what][metrics] /= len(validloader)
+
+        logr.log('> Metrics Evaluations for Validation Set:\n')
+        for metrics_for_what in metrics_res:
+            logr.log('%s:\n' % metrics_for_what)
+            for metrics in metrics_res[metrics_for_what]:
+                for mi in range(num_metrics_threshold):
+                    logr.log('%s-%d = %.4f%s' % (metrics, Config.EVAL_METRICS_THRESHOLD_SET[mi],
+                                                 metrics_res[metrics_for_what][metrics][mi],
+                                                 (', ' if mi != num_metrics_threshold - 1 else '\n')))
+
+        # 2.
+        net.eval()
+        # Metrics with thresholds
+        for metrics_for_what in metrics_res:
+            metrics_res[metrics_for_what] = {
+                'RMSE': torch.zeros(num_metrics_threshold),
+                'MAPE': torch.zeros(num_metrics_threshold),
+                'MAE': torch.zeros(num_metrics_threshold),
+            }
+        # Clean GPU memory
+        if device.type == 'cuda':
+            torch.cuda.empty_cache()
+        with torch.no_grad():
+            for k, test_batch in enumerate(testloader):
+                test_record, test_query, test_target_G, test_target_D = test_batch['record'], test_batch['query'], test_batch['target_G'], test_batch['target_D']
+                if device:
+                    test_record, test_query, test_target_G, test_target_D = batch2device(test_record, test_query, test_target_G, test_target_D, device)
+
+                test_res_D, test_res_G = net(test_record, test_query, predict_G=True)
+
+                for mi in range(num_metrics_threshold):  # for the (mi)th threshold
+                    metrics_res['Demand']['RMSE'][mi] += RMSE(test_res_D, test_target_D, metrics_thresholds[mi]).item()
+                    metrics_res['Demand']['MAPE'][mi] += MAPE(test_res_D, test_target_D, metrics_thresholds[mi]).item()
+                    metrics_res['Demand']['MAE'][mi] += MAE(test_res_D, test_target_D, metrics_thresholds[mi]).item()
+                    metrics_res['OD']['RMSE'][mi] += RMSE(test_res_G, test_target_G, metrics_thresholds[mi]).item()
+                    metrics_res['OD']['MAPE'][mi] += MAPE(test_res_G, test_target_G, metrics_thresholds[mi]).item()
+                    metrics_res['OD']['MAE'][mi] += MAE(test_res_G, test_target_G, metrics_thresholds[mi]).item()
+
+            for metrics_for_what in metrics_res:
+                for metrics in metrics_res[metrics_for_what]:
+                    metrics_res[metrics_for_what][metrics] /= len(testloader)
+
+            logr.log('> Metrics Evaluations for Test Set:\n')
+            for metrics_for_what in metrics_res:
+                logr.log('%s:\n' % metrics_for_what)
+                for metrics in metrics_res[metrics_for_what]:
+                    for mi in range(num_metrics_threshold):
+                        logr.log('%s-%d = %.4f%s' % (metrics, Config.EVAL_METRICS_THRESHOLD_SET[mi],
+                                                     metrics_res[metrics_for_what][metrics][mi],
+                                                     (', ' if mi != num_metrics_threshold - 1 else '\n')))
+
+    # End Evaluation
+    logr.log('> Evaluation finished.\n')
 
 
 if __name__ == '__main__':
@@ -266,7 +331,7 @@ if __name__ == '__main__':
         Usage Example:
         python Trainer.py -dr data/ny2016_0101to0331/ -th 1064 -ts 1 -c 4 -m train -tt pretrain -net Gallat -me 100 -bs 5 -sfd 1 -sfg 1
         python Trainer.py -dr data/ny2016_0101to0331/ -th 1064 -ts 1 -c 4 -m train -tt retrain -r res/Gallat_pretrain/20210514_07_17_13.pth -me 100 -bs 5 -sfd 1 -sfg 1
-        python Trainer.py -dr data/ny2016_0101to0331/ -th 1064 -ts 1 -c 4 -m eval -e model/20221225_06_06_06.pth -bs 5 -sfd 1 -sfg 1
+        python Trainer.py -dr data/ny2016_0101to0331/ -th 1064 -ts 1 -c 4 -m eval -e res/Gallat_normal/20210515_16_47_01.pth -bs 5 -sfd 1 -sfg 1
     """
     parser = argparse.ArgumentParser()
     parser.add_argument('-lr', '--learning_rate', type=float, default=Config.LEARNING_RATE_DEFAULT, help='Learning rate, default = {}'.format(Config.LEARNING_RATE_DEFAULT))

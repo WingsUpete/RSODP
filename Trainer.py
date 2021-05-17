@@ -237,6 +237,11 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
     testloader = GraphDataLoader(dataset.test_set, batch_size=bs, shuffle=False, num_workers=num_workers)
     logr.log('> Validation batches: {}, Test batches: {}\n'.format(len(validloader), len(testloader)))
 
+    # Scale Factor
+    if device:
+        scale_factor_d = scale_factor_d.to(device)
+        scale_factor_g = scale_factor_g.to(device)
+
     # 1.
     net.eval()
     # Metrics with thresholds
@@ -248,7 +253,8 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
             'MAPE': torch.zeros(num_metrics_threshold),
             'MAE': torch.zeros(num_metrics_threshold),
         }
-    metrics_thresholds = [torch.Tensor([threshold]).to(device) for threshold in Config.EVAL_METRICS_THRESHOLD_SET]
+    if device:
+        metrics_thresholds = [torch.Tensor([threshold]).to(device) for threshold in Config.EVAL_METRICS_THRESHOLD_SET]
     # Clean GPU memory
     if device.type == 'cuda':
         torch.cuda.empty_cache()

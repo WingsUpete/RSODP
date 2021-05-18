@@ -1,9 +1,11 @@
 import os
 import argparse
+import json
 
 
 def analyze(data_dir='../data/ny2016_0101to0331/'):
-    pass
+    req_info = json.load(open(os.path.join(data_dir, 'req_info.json')))
+    total_H = req_info['totalH']
 
 
 if __name__ == '__main__':

@@ -65,7 +65,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
           metrics_threshold=Config.METRICS_THRESHOLD_DEFAULT, total_H=Config.DATA_TOTAL_H, start_H=Config.DATA_START_H,
           hidden_dim=Config.HIDDEN_DIM_DEFAULT, feat_dim=Config.FEAT_DIM_DEFAULT, query_dim=Config.QUERY_DIM_DEFAULT,
           scale_factor_d=Config.SCALE_FACTOR_DEFAULT_D, scale_factor_g=Config.SCALE_FACTOR_DEFAULT_G,
-          retrain_model_path=Config.RETRAIN_MODEL_PATH_DEFAULT):
+          retrain_model_path=Config.RETRAIN_MODEL_PATH_DEFAULT, loss_function=Config.LOSS_FUNC_DEFAULT):
     # Load DataSet
     logr.log('> Loading DataSet from {}\n'.format(data_dir))
     dataset = RSODPDataSet(data_dir, his_rec_num=Config.HISTORICAL_RECORDS_NUM_DEFAULT, time_slot_endurance=Config.TIME_SLOT_ENDURANCE_DEFAULT, total_H=total_H, start_at=start_H)
@@ -95,9 +95,15 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
         optimizer = torch.optim.Adam(net.parameters(), lr, weight_decay=Config.WEIGHT_DECAY_DEFAULT)    # Adam + L2 Norm
 
     # Loss Function
-    logr.log('> Using SmoothL1Loss as the Loss Function.\n')
+    logr.log('> Using {} as the Loss Function.\n'.format(loss_function))
     criterion_D = nn.SmoothL1Loss()
     criterion_G = nn.SmoothL1Loss()
+    if loss_function == 'SmoothL1Loss':
+        criterion_D = nn.SmoothL1Loss()
+        criterion_G = nn.SmoothL1Loss()
+    elif loss_function == 'MSELoss':
+        criterion_D = nn.MSELoss()
+        criterion_G = nn.MSELoss()
 
     # CUDA if possible
     device = torch.device('cuda:0' if (use_gpu and torch.cuda.is_available()) else 'cpu')
@@ -387,6 +393,8 @@ if __name__ == '__main__':
     parser.add_argument('-sfd', '--scale_factor_d', type=float, default=Config.SCALE_FACTOR_DEFAULT_D, help='scale factor for model output d, default = {}'.format(Config.SCALE_FACTOR_DEFAULT_D))
     parser.add_argument('-sfg', '--scale_factor_g', type=float, default=Config.SCALE_FACTOR_DEFAULT_G, help='scale factor for model output g, default = {}'.format(Config.SCALE_FACTOR_DEFAULT_G))
     parser.add_argument('-r', '--retrain_model_path', type=str, default=Config.RETRAIN_MODEL_PATH_DEFAULT, help='Specify the location of the model to be retrained if train type is retrain, default = {}'.format(Config.RETRAIN_MODEL_PATH_DEFAULT))
+    parser.add_argument('-lf', '--loss_function', type=str, default=Config.LOSS_FUNC_DEFAULT, help='Specify which loss function to use, default = {}'.format(Config.LOSS_FUNC_DEFAULT))
+
     FLAGS, unparsed = parser.parse_known_args()
 
     # Starts a log file in the specified directory
@@ -402,7 +410,7 @@ if __name__ == '__main__':
               total_H=FLAGS.hours, start_H=FLAGS.start_hour, hidden_dim=FLAGS.hidden_dim,
               feat_dim=FLAGS.feature_dim, query_dim=FLAGS.query_dim,
               scale_factor_d=torch.Tensor([FLAGS.scale_factor_d]), scale_factor_g=torch.Tensor([FLAGS.scale_factor_g]),
-              retrain_model_path=FLAGS.retrain_model_path)
+              retrain_model_path=FLAGS.retrain_model_path, loss_function=FLAGS.loss_function)
         logger.close()
     elif working_mode == 'eval':
         eval_file = FLAGS.eval

@@ -67,7 +67,6 @@ class TranAttLayer(nn.Module):
 
         A = F.leaky_relu(A)
         Q = F.softmax(A, dim=-1)
-        Q = F.dropout(Q, 0.1)
         del A
 
         # Expand D as well

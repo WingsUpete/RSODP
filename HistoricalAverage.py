@@ -56,8 +56,7 @@ def avgRec(records: dict):
 
 
 def HA(bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT, logr=Logger(activate=False), use_gpu=True,
-       data_dir=Config.DATA_DIR_DEFAULT, total_H=Config.DATA_TOTAL_H, start_H=Config.DATA_START_H,
-       scale_factor_d=Config.SCALE_FACTOR_DEFAULT_D, scale_factor_g=Config.SCALE_FACTOR_DEFAULT_G):
+       data_dir=Config.DATA_DIR_DEFAULT, total_H=Config.DATA_TOTAL_H, start_H=Config.DATA_START_H):
     """
         Evaluate using saved best model (Note that this is a Test API)
         1. Re-evaluate on the validation set
@@ -102,12 +101,12 @@ def HA(bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT, logr=Lo
             val_res_D, val_res_G = avgRec(val_record)
 
             for mi in range(num_metrics_threshold):     # for the (mi)th threshold
-                metrics_res['Demand']['RMSE'][mi] += RMSE(val_res_D * scale_factor_d, val_target_D, metrics_thresholds[mi]).item()
-                metrics_res['Demand']['MAPE'][mi] += MAPE(val_res_D * scale_factor_d, val_target_D, metrics_thresholds[mi]).item()
-                metrics_res['Demand']['MAE'][mi] += MAE(val_res_D * scale_factor_d, val_target_D, metrics_thresholds[mi]).item()
-                metrics_res['OD']['RMSE'][mi] += RMSE(val_res_G * scale_factor_g, val_target_G, metrics_thresholds[mi]).item()
-                metrics_res['OD']['MAPE'][mi] += MAPE(val_res_G * scale_factor_g, val_target_G, metrics_thresholds[mi]).item()
-                metrics_res['OD']['MAE'][mi] += MAE(val_res_G * scale_factor_g, val_target_G, metrics_thresholds[mi]).item()
+                metrics_res['Demand']['RMSE'][mi] += RMSE(val_res_D, val_target_D, metrics_thresholds[mi]).item()
+                metrics_res['Demand']['MAPE'][mi] += MAPE(val_res_D, val_target_D, metrics_thresholds[mi]).item()
+                metrics_res['Demand']['MAE'][mi] += MAE(val_res_D, val_target_D, metrics_thresholds[mi]).item()
+                metrics_res['OD']['RMSE'][mi] += RMSE(val_res_G, val_target_G, metrics_thresholds[mi]).item()
+                metrics_res['OD']['MAPE'][mi] += MAPE(val_res_G, val_target_G, metrics_thresholds[mi]).item()
+                metrics_res['OD']['MAE'][mi] += MAE(val_res_G, val_target_G, metrics_thresholds[mi]).item()
 
         for metrics_for_what in metrics_res:
             for metrics in metrics_res[metrics_for_what]:
@@ -142,12 +141,12 @@ def HA(bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT, logr=Lo
             test_res_D, test_res_G = avgRec(test_record)
 
             for mi in range(num_metrics_threshold):     # for the (mi)th threshold
-                metrics_res['Demand']['RMSE'][mi] += RMSE(test_res_D * scale_factor_d, test_target_D, metrics_thresholds[mi]).item()
-                metrics_res['Demand']['MAPE'][mi] += MAPE(test_res_D * scale_factor_d, test_target_D, metrics_thresholds[mi]).item()
-                metrics_res['Demand']['MAE'][mi] += MAE(test_res_D * scale_factor_d, test_target_D, metrics_thresholds[mi]).item()
-                metrics_res['OD']['RMSE'][mi] += RMSE(test_res_G * scale_factor_g, test_target_G, metrics_thresholds[mi]).item()
-                metrics_res['OD']['MAPE'][mi] += MAPE(test_res_G * scale_factor_g, test_target_G, metrics_thresholds[mi]).item()
-                metrics_res['OD']['MAE'][mi] += MAE(test_res_G * scale_factor_g, test_target_G, metrics_thresholds[mi]).item()
+                metrics_res['Demand']['RMSE'][mi] += RMSE(test_res_D, test_target_D, metrics_thresholds[mi]).item()
+                metrics_res['Demand']['MAPE'][mi] += MAPE(test_res_D, test_target_D, metrics_thresholds[mi]).item()
+                metrics_res['Demand']['MAE'][mi] += MAE(test_res_D, test_target_D, metrics_thresholds[mi]).item()
+                metrics_res['OD']['RMSE'][mi] += RMSE(test_res_G, test_target_G, metrics_thresholds[mi]).item()
+                metrics_res['OD']['MAPE'][mi] += MAPE(test_res_G, test_target_G, metrics_thresholds[mi]).item()
+                metrics_res['OD']['MAE'][mi] += MAE(test_res_G, test_target_G, metrics_thresholds[mi]).item()
 
         for metrics_for_what in metrics_res:
             for metrics in metrics_res[metrics_for_what]:
@@ -175,8 +174,6 @@ if __name__ == '__main__':
     parser.add_argument('-th', '--hours', type=int, default=Config.DATA_TOTAL_H, help='Specify the number of hours for data, default = {}'.format(Config.DATA_TOTAL_H))
     parser.add_argument('-ts', '--start_hour', type=int, default=Config.DATA_START_H, help='Specify the starting hour for data, default = {}'.format(Config.DATA_START_H))
     parser.add_argument('-ld', '--log_dir', type=str, default=Config.LOG_DIR_DEFAULT, help='Specify where to create a log file. If log files are not wanted, value will be None'.format(Config.LOG_DIR_DEFAULT))
-    parser.add_argument('-sfd', '--scale_factor_d', type=float, default=Config.SCALE_FACTOR_DEFAULT_D, help='scale factor for model output d, default = {}'.format(Config.SCALE_FACTOR_DEFAULT_D))
-    parser.add_argument('-sfg', '--scale_factor_g', type=float, default=Config.SCALE_FACTOR_DEFAULT_G, help='scale factor for model output g, default = {}'.format(Config.SCALE_FACTOR_DEFAULT_G))
     parser.add_argument('-gpu', '--gpu', type=int, default=Config.USE_GPU_DEFAULT, help='Specify whether to use GPU, default = {}'.format(Config.USE_GPU_DEFAULT))
     FLAGS, unparsed = parser.parse_known_args()
 
@@ -185,6 +182,5 @@ if __name__ == '__main__':
 
     # HA
     HA(bs=FLAGS.batch_size, num_workers=FLAGS.cores, logr=logger, use_gpu=(FLAGS.gpu == 1),
-       data_dir=FLAGS.data_dir, total_H=FLAGS.hours, start_H=FLAGS.start_hour,
-       scale_factor_d=FLAGS.scale_factor_d, scale_factor_g=FLAGS.scale_factor_g)
+       data_dir=FLAGS.data_dir, total_H=FLAGS.hours, start_H=FLAGS.start_hour)
     logger.close()

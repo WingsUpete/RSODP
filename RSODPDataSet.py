@@ -189,25 +189,27 @@ def testSamplingSpeed(dataset: DGLDataset, batch_size: int, shuffle: bool, tag: 
     sys.stdout.write('\n')
 
 
-def maxWhat(dataset: RSODPDataSet, batch_size=20, num_workers=4):
+def meanWhat(dataset: RSODPDataSet, batch_size=20, num_workers=4):
     """ Find the maximum values of D and G over the dataset """
     trainloader = GraphDataLoader(dataset.train_set, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     validloader = GraphDataLoader(dataset.valid_set, batch_size=batch_size, shuffle=False, num_workers=num_workers)
     testloader = GraphDataLoader(dataset.test_set, batch_size=batch_size, shuffle=False, num_workers=num_workers)
-    max_d = 0
-    max_g = 0
+    mean_d = 0
+    mean_g = 0
     for dataloader in [trainloader, validloader, testloader]:
+        cur_mean_d = 0
+        cur_mean_g = 0
         for i, batch in enumerate(dataloader):
             target_G, target_D = batch['target_G'], batch['target_D']
-
-            cur_max_d = torch.max(target_D)
-            if cur_max_d > max_d:
-                max_d = cur_max_d
-
-            cur_max_g = torch.max(target_G)
-            if cur_max_g > max_g:
-                max_g = cur_max_g
-    print('Maximum d = {}, maximum g = {}'.format(max_d, max_g))
+            cur_mean_d += torch.mean(target_D)
+            cur_mean_g += torch.mean(target_G)
+        cur_mean_d /= len(dataloader)
+        cur_mean_g /= len(dataloader)
+        mean_d += cur_mean_d
+        mean_g += cur_mean_g
+    mean_d /= 3
+    mean_g /= 3
+    print('Mean d = {}, mean g = {}'.format(mean_d, mean_g))
 
 
 if __name__ == '__main__':
@@ -216,4 +218,4 @@ if __name__ == '__main__':
     # testSamplingSpeed(ds.train_set, batch_size=20, shuffle=True, tag='Training', num_workers=4)
     # testSamplingSpeed(ds.valid_set, batch_size=20, shuffle=False, tag='Validation', num_workers=4)
     # testSamplingSpeed(ds.test_set, batch_size=20, shuffle=False, tag='Test', num_workers=4)
-    maxWhat(dataset=ds)
+    meanWhat(dataset=ds)

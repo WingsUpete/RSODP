@@ -72,7 +72,7 @@ def HA(bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT, logr=Lo
 
     # Load DataSet
     logr.log('> Loading DataSet from {}\n'.format(data_dir))
-    dataset = RSODPDataSet(data_dir, his_rec_num=Config.HISTORICAL_RECORDS_NUM_DEFAULT, time_slot_endurance=Config.TIME_SLOT_ENDURANCE_DEFAULT, total_H=total_H, start_at=start_H, ha=True)
+    dataset = RSODPDataSet(data_dir, his_rec_num=Config.HISTORICAL_RECORDS_NUM_DEFAULT, time_slot_endurance=Config.TIME_SLOT_ENDURANCE_DEFAULT, total_H=total_H, start_at=start_H)
     validloader = GraphDataLoader(dataset.valid_set, batch_size=bs, shuffle=False, num_workers=num_workers)
     testloader = GraphDataLoader(dataset.test_set, batch_size=bs, shuffle=False, num_workers=num_workers)
     logr.log('> Validation batches: {}, Test batches: {}\n'.format(len(validloader), len(testloader)))
@@ -94,7 +94,7 @@ def HA(bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT, logr=Lo
         torch.cuda.empty_cache()
     with torch.no_grad():
         for j, val_batch in enumerate(validloader):
-            val_record, val_target_G, val_target_D = val_batch['record'], val_batch['target_G'], val_batch['target_D']
+            val_record, val_target_G, val_target_D = val_batch['record_GD'], val_batch['target_G'], val_batch['target_D']
             if device:
                 val_record, val_target_G, val_target_D = batch2device(val_record, val_target_G, val_target_D, device)
 
@@ -134,7 +134,7 @@ def HA(bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT, logr=Lo
         torch.cuda.empty_cache()
     with torch.no_grad():
         for k, test_batch in enumerate(testloader):
-            test_record, test_target_G, test_target_D = test_batch['record'], test_batch['target_G'], test_batch['target_D']
+            test_record, test_target_G, test_target_D = test_batch['record_GD'], test_batch['target_G'], test_batch['target_D']
             if device:
                 test_record, test_target_G, test_target_D = batch2device(test_record, test_target_G, test_target_D, device)
 

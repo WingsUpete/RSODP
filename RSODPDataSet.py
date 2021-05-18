@@ -45,64 +45,29 @@ class RSODPDataSetEntity(DGLDataset):
 
         # sample: for each time slot: (fg, bg, gg, V)
         cur_sample_inputs = {}
+        cur_sample_GDs = {}
         for temp_feat in Config.TEMP_FEAT_NAMES:
             temp_feat_sample_inputs = []
+            temp_feat_sample_GDs = []
             for ts in cur_sample_ref['record'][temp_feat]:
                 GDVQ_ts = np.load(os.path.join(self.data_dir, str(ts), 'GDVQ.npy'), allow_pickle=True).item()
-                V_ts = torch.from_numpy(GDVQ_ts['V'])
+                G_ts, D_ts, V_ts = torch.from_numpy(GDVQ_ts['G']), torch.from_numpy(GDVQ_ts['D']), torch.from_numpy(GDVQ_ts['V'])
                 (fg_ts, bg_ts,), _ = dgl.load_graphs(os.path.join(self.data_dir, str(ts), 'FBGraphs.dgl'))
                 (gg_ts,), _ = dgl.load_graphs(os.path.join(self.data_dir, 'GeoGraph.dgl'))
                 fg_ts.ndata['v'] = V_ts
                 bg_ts.ndata['v'] = V_ts
                 gg_ts.ndata['v'] = V_ts
                 temp_feat_sample_inputs.append((fg_ts, bg_ts, gg_ts))
+                temp_feat_sample_GDs.append((D_ts, G_ts))
             cur_sample_inputs[temp_feat] = temp_feat_sample_inputs
+            cur_sample_GDs[temp_feat] = temp_feat_sample_GDs
 
         cur_sample_data = {
             'target_G': G_Tp1,
             'target_D': D_Tp1,
             'query': Q_Tp1,
-            'record': cur_sample_inputs
-        }
-        return cur_sample_data
-
-
-class HARSODPDataSetEntity(DGLDataset):
-    def __init__(self, data_dir: str, sample_list: list, ds_type='train'):
-        self.data_dir = data_dir
-        self.sample_list = sample_list
-        self.ds_type = ds_type
-
-    def process(self):
-        pass
-
-    def __len__(self):
-        return len(self.sample_list)
-
-    def __getitem__(self, idx):
-        # Want the (idx)th data from sample_list
-        cur_sample_ref: dict = self.sample_list[idx]
-
-        # T -> T+1 = target (G, Q)
-        cur_T = cur_sample_ref['T']
-        cur_Tp1 = cur_T + 1
-        GDVQ_Tp1 = np.load(os.path.join(self.data_dir, str(cur_Tp1), 'GDVQ.npy'), allow_pickle=True).item()
-        G_Tp1, D_Tp1 = torch.from_numpy(GDVQ_Tp1['G']), torch.from_numpy(GDVQ_Tp1['D'])
-
-        # sample: for each time slot: (fg, bg, gg, V)
-        cur_sample_inputs = {}
-        for temp_feat in Config.TEMP_FEAT_NAMES:
-            temp_feat_sample_inputs = []
-            for ts in cur_sample_ref['record'][temp_feat]:
-                GDVQ_ts = np.load(os.path.join(self.data_dir, str(ts), 'GDVQ.npy'), allow_pickle=True).item()
-                G_ts, D_ts = torch.from_numpy(GDVQ_ts['G']), torch.from_numpy(GDVQ_ts['D'])
-                temp_feat_sample_inputs.append((D_ts, G_ts))
-            cur_sample_inputs[temp_feat] = temp_feat_sample_inputs
-
-        cur_sample_data = {
-            'target_G': G_Tp1,
-            'target_D': D_Tp1,
-            'record': cur_sample_inputs
+            'record': cur_sample_inputs,
+            'record_GD': cur_sample_GDs
         }
         return cur_sample_data
 
@@ -114,7 +79,7 @@ class RSODPDataSet:
         validation set: the last 10% of the training set
     """
 
-    def __init__(self, data_dir: str, his_rec_num=7, time_slot_endurance=1, total_H=-1, start_at=-1, ha=False):
+    def __init__(self, data_dir: str, his_rec_num=7, time_slot_endurance=1, total_H=-1, start_at=-1):
         self.data_dir = data_dir
         self.req_info = json.load(open(os.path.join(data_dir, 'req_info.json')))
         self.his_rec_num = his_rec_num  # P
@@ -123,8 +88,6 @@ class RSODPDataSet:
         self.total_H = self.req_info['totalH'] if total_H <= 0 else total_H
         self.start_at = 1 if start_at <= 0 else start_at
 
-        self.HA = ha
-
         self.total_sample_list = self.constructSampleList()
         self.total_sample_num = len(self.total_sample_list)
 
@@ -132,10 +95,6 @@ class RSODPDataSet:
         self.train_set = RSODPDataSetEntity(self.data_dir, sample_list=self.train_list, ds_type='train')
         self.valid_set = RSODPDataSetEntity(self.data_dir, sample_list=self.valid_list, ds_type='valid')
         self.test_set = RSODPDataSetEntity(self.data_dir, sample_list=self.test_list, ds_type='test')
-        if self.HA:
-            self.train_set = HARSODPDataSetEntity(self.data_dir, sample_list=self.train_list, ds_type='train')
-            self.valid_set = HARSODPDataSetEntity(self.data_dir, sample_list=self.valid_list, ds_type='valid')
-            self.test_set = HARSODPDataSetEntity(self.data_dir, sample_list=self.test_list, ds_type='test')
 
     def constructSampleList(self):
         totalH = self.total_H

@@ -153,7 +153,7 @@ def HA(bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT, logr=Lo
             for metrics in metrics_res[metrics_for_what]:
                 metrics_res[metrics_for_what][metrics] /= len(testloader)
 
-        logr.log('> Metrics Evaluations for Validation Set:\n')
+        logr.log('> Metrics Evaluations for Test Set:\n')
         for metrics_for_what in metrics_res:
             logr.log('%s:\n' % metrics_for_what)
             for metrics in metrics_res[metrics_for_what]:

@@ -22,11 +22,12 @@ from model import Gallat, GallatExt
 import Config
 
 
-def batch2device(record: dict, query: torch.Tensor, target_G: torch.Tensor, target_D: torch.Tensor, device):
+def batch2device(record: dict, record_GD: dict, query: torch.Tensor, target_G: torch.Tensor, target_D: torch.Tensor, device):
     """ Transfer all sample data into the device (cpu/gpu) """
     # Transfer record
     for temp_feat in Config.TEMP_FEAT_NAMES:
         record[temp_feat] = [(fg.to(device), bg.to(device), gg.to(device)) for (fg, bg, gg) in record[temp_feat]]
+        record_GD[temp_feat] = [(curD.to(device), curG.to(device)) for (curD, curG) in record_GD[temp_feat]]
 
     # Transfer query
     query = query.to(device)
@@ -35,7 +36,26 @@ def batch2device(record: dict, query: torch.Tensor, target_G: torch.Tensor, targ
     target_G = target_G.to(device)
     target_D = target_D.to(device)
 
-    return record, query, target_G, target_D
+    return record, record_GD, query, target_G, target_D
+
+
+def avgRec(records: dict):
+    # Aggregate features for each temporal feature set
+    res0 = {}
+    for temp_feat in Config.TEMP_FEAT_NAMES:
+        curDList = [records[temp_feat][i][0] for i in range(len(records[temp_feat]))]
+        curGList = [records[temp_feat][i][1] for i in range(len(records[temp_feat]))]
+        avgD = sum(curDList) / len(curDList)
+        avgG = sum(curGList) / len(curGList)
+        res0[temp_feat] = (avgD, avgG)
+
+    # Aggregate features altogether
+    allD = [res0[temp_feat][0] for temp_feat in res0]
+    allG = [res0[temp_feat][1] for temp_feat in res0]
+    avgD = sum(allD) / len(allD)
+    avgG = sum(allG) / len(allG)
+
+    return avgD, avgG
 
 
 def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Config.MAX_EPOCHS_DEFAULT,
@@ -123,9 +143,9 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
         for i, batch in enumerate(trainloader):
             if device.type == 'cuda':
                 torch.cuda.empty_cache()
-            record, query, target_G, target_D = batch['record'], batch['query'], batch['target_G'], batch['target_D']
+            record, record_GD, query, target_G, target_D = batch['record'], batch['record_GD'], batch['query'], batch['target_G'], batch['target_D']
             if device:
-                record, query, target_G, target_D = batch2device(record, query, target_G, target_D, device)
+                record, record_GD, query, target_G, target_D = batch2device(record, record_GD, query, target_G, target_D, device)
 
             # Avoid exploding gradients
             torch.nn.utils.clip_grad_norm_(net.parameters(), max_norm=Config.MAX_NORM_DEFAULT)
@@ -138,7 +158,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
             #         loss = criterion_D(res_D, target_D) if pretrain else (criterion_D(res_D, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G) * Config.G_PERCENTAGE_DEFAULT)
             # logr.log(prof.key_averages().table(sort_by="cuda_time_total"))
 
-            res_D, res_G = net(record, query, predict_G=predict_G)  # if pretrain, res_G = None
+            ref_D, ref_G = avgRec(record_GD)
+            res_D, res_G = net(record, query, ref_D, ref_G, predict_G=predict_G)  # if pretrain, res_G = None
             loss = (criterion_D(res_D, target_D / scale_factor_d) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G / scale_factor_g) * Config.G_PERCENTAGE_DEFAULT) if predict_G else criterion_D(res_D, target_D / scale_factor_d)
 
             loss.backward()
@@ -175,11 +196,12 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                 torch.cuda.empty_cache()
             with torch.no_grad():
                 for j, val_batch in enumerate(validloader):
-                    val_record, val_query, val_target_G, val_target_D = val_batch['record'], val_batch['query'], val_batch['target_G'], val_batch['target_D']
+                    val_record, val_record_GD, val_query, val_target_G, val_target_D = val_batch['record'], val_batch['record_GD'], val_batch['query'], val_batch['target_G'], val_batch['target_D']
                     if device:
-                        val_record, val_query, val_target_G, val_target_D = batch2device(val_record, val_query, val_target_G, val_target_D, device)
+                        val_record, val_record_GD, val_query, val_target_G, val_target_D = batch2device(val_record, val_record_GD, val_query, val_target_G, val_target_D, device)
 
-                    val_res_D, val_res_G = net(val_record, val_query, predict_G=True)
+                    val_ref_D, val_ref_G = avgRec(val_record_GD)
+                    val_res_D, val_res_G = net(val_record, val_query, val_ref_D, val_ref_G, predict_G=True)
                     val_loss = criterion_D(val_res_D, val_target_D / scale_factor_d) * Config.D_PERCENTAGE_DEFAULT + criterion_G(val_res_G, val_target_G / scale_factor_g) * Config.G_PERCENTAGE_DEFAULT
 
                     val_loss_total += val_loss.item()
@@ -260,11 +282,12 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
         torch.cuda.empty_cache()
     with torch.no_grad():
         for j, val_batch in enumerate(validloader):
-            val_record, val_query, val_target_G, val_target_D = val_batch['record'], val_batch['query'], val_batch['target_G'], val_batch['target_D']
+            val_record, val_record_GD, val_query, val_target_G, val_target_D = val_batch['record'], val_batch['record_GD'], val_batch['query'], val_batch['target_G'], val_batch['target_D']
             if device:
-                val_record, val_query, val_target_G, val_target_D = batch2device(val_record, val_query, val_target_G, val_target_D, device)
+                val_record, val_record_GD, val_query, val_target_G, val_target_D = batch2device(val_record, val_record_GD, val_query, val_target_G, val_target_D, device)
 
-            val_res_D, val_res_G = net(val_record, val_query, predict_G=True)
+            val_ref_D, val_ref_G = avgRec(val_record_GD)
+            val_res_D, val_res_G = net(val_record, val_query, val_ref_D, val_ref_G, predict_G=True)
 
             for mi in range(num_metrics_threshold):     # for the (mi)th threshold
                 metrics_res['Demand']['RMSE'][mi] += RMSE(val_res_D * scale_factor_d, val_target_D, metrics_thresholds[mi]).item()
@@ -301,11 +324,12 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
             torch.cuda.empty_cache()
         with torch.no_grad():
             for k, test_batch in enumerate(testloader):
-                test_record, test_query, test_target_G, test_target_D = test_batch['record'], test_batch['query'], test_batch['target_G'], test_batch['target_D']
+                test_record, test_record_GD, test_query, test_target_G, test_target_D = test_batch['record'], test_batch['record_GD'], test_batch['query'], test_batch['target_G'], test_batch['target_D']
                 if device:
-                    test_record, test_query, test_target_G, test_target_D = batch2device(test_record, test_query, test_target_G, test_target_D, device)
+                    test_record, test_record_GD, test_query, test_target_G, test_target_D = batch2device(test_record, test_record_GD, test_query, test_target_G, test_target_D, device)
 
-                test_res_D, test_res_G = net(test_record, test_query, predict_G=True)
+                test_ref_D, test_ref_G = avgRec(test_record_GD)
+                test_res_D, test_res_G = net(test_record, test_query, test_ref_D, test_ref_G, predict_G=True)
 
                 for mi in range(num_metrics_threshold):  # for the (mi)th threshold
                     metrics_res['Demand']['RMSE'][mi] += RMSE(test_res_D * scale_factor_d, test_target_D, metrics_thresholds[mi]).item()
@@ -335,7 +359,7 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
 if __name__ == '__main__':
     """ 
         Usage Example:
-        python Trainer.py -dr data/ny2016_0101to0331/ -th 1064 -ts 1 -c 4 -m train -tt pretrain -net Gallat -me 100 -bs 5 -sfd 1 -sfg 1
+        python Trainer.py -dr data/ny2016_0101to0331/ -th 1064 -ts 1 -c 4 -m train -tt pretrain -net Gallat -me 200 -bs 5 -sfd 1 -sfg 1
         python Trainer.py -dr data/ny2016_0101to0331/ -th 1064 -ts 1 -c 4 -m train -tt retrain -r res/Gallat_pretrain/20210514_07_17_13.pth -me 100 -bs 5 -sfd 1 -sfg 1
         python Trainer.py -dr data/ny2016_0101to0331/ -th 1064 -ts 1 -c 4 -m eval -e res/Gallat_normal/20210515_16_47_01.pth -bs 5 -sfd 1 -sfg 1
     """

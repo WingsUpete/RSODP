@@ -81,7 +81,7 @@ class TranAttLayer(nn.Module):
 
         return G
 
-    def forward(self, embed_feat, predict_G):
+    def forward(self, embed_feat, predict_G, ref_D=None, ref_G=None):
         num_nodes = embed_feat.shape[-2]
 
         # Predict demands
@@ -89,12 +89,17 @@ class TranAttLayer(nn.Module):
         if self.activate_function:
             demands = self.activate_function(demands)
         demands_out = demands.reshape(-1, num_nodes)
+        if ref_D is not None:   # scale
+            demands_out *= ref_D
+        demands = demands_out.reshape(-1, num_nodes, 1)
         del num_nodes
 
         if predict_G:
             # Predict Request Graph
             req_gs = self.predict_request_graphs(embed_feat, demands)
             del demands
+            if ref_G is not None:   # mean
+                req_gs = (req_gs + ref_G) / 2
             return demands_out, req_gs
         else:
             return demands_out, None

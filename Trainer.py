@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.autograd.profiler as profiler
+torch.autograd.set_detect_anomaly(True)
 
 stderr = sys.stderr
 sys.stderr = open(os.devnull, 'w')

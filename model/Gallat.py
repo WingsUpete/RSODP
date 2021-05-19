@@ -46,6 +46,6 @@ class Gallat(nn.Module):
             torch.cuda.empty_cache()
 
         # Transferring features to perform predictions
-        res = self.tranAttLayer(temp_embed, predict_G)
+        res = self.tranAttLayer(temp_embed, predict_G, ref_D, ref_G)
 
         return res

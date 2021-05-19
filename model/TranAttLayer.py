@@ -106,6 +106,7 @@ class TranAttLayer(nn.Module):
             del demands
             if ref_G is not None:   # mean
                 req_gs = self.od_fc(torch.cat([req_gs.reshape(-1, num_nodes, num_nodes, 1), ref_G.reshape(-1, num_nodes, num_nodes, 1)], dim=-1))
+                req_gs = req_gs.reshape(-1, num_nodes, num_nodes)
             del num_nodes
             return demands_out, req_gs
         else:

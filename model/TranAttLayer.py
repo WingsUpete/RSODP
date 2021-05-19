@@ -31,6 +31,8 @@ class TranAttLayer(nn.Module):
             self.activate_function = None
             gain_val = nn.init.calculate_gain('relu')
 
+        self.od_fc = nn.Linear(2, 1, bias=True)
+
         # Shared Weight W_a for AttentionNet
         self.Wa = nn.Linear(self.embed_dim, self.embed_dim, bias=False)
         # AttentionNet outer linear layer
@@ -41,6 +43,7 @@ class TranAttLayer(nn.Module):
         self.reset_parameters(gain=gain_val)
 
     def reset_parameters(self, gain):
+        # Demand
         nn.init.xavier_normal_(self.demand_fc.weight, gain=gain)
 
         # Attention
@@ -48,6 +51,10 @@ class TranAttLayer(nn.Module):
         nn.init.xavier_normal_(self.Wa.weight, gain=gain)
         nn.init.xavier_normal_(self.att_out_fc_l.weight, gain=gain)
         nn.init.xavier_normal_(self.att_out_fc_r.weight, gain=gain)
+
+        # OD
+        gain = nn.init.calculate_gain('relu')
+        nn.init.xavier_normal_(self.od_fc.weight, gain=gain)
 
     def predict_request_graphs(self, embed_feat, demands):
         num_nodes = embed_feat.shape[-2]
@@ -99,7 +106,7 @@ class TranAttLayer(nn.Module):
             req_gs = self.predict_request_graphs(embed_feat, demands)
             del demands
             if ref_G is not None:   # mean
-                req_gs = (req_gs + ref_G) / 2
+                req_gs = self.od_fc(torch.cat([req_gs, ref_G], dim=-1))
             return demands_out, req_gs
         else:
             return demands_out, None

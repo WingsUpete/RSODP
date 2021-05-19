@@ -31,8 +31,6 @@ class TranAttLayer(nn.Module):
             self.activate_function = None
             gain_val = nn.init.calculate_gain('relu')
 
-        self.od_fc = nn.Linear(2, 1, bias=True)
-
         # Shared Weight W_a for AttentionNet
         self.Wa = nn.Linear(self.embed_dim, self.embed_dim, bias=False)
         # AttentionNet outer linear layer
@@ -52,11 +50,7 @@ class TranAttLayer(nn.Module):
         nn.init.xavier_normal_(self.att_out_fc_l.weight, gain=gain)
         nn.init.xavier_normal_(self.att_out_fc_r.weight, gain=gain)
 
-        # OD
-        gain = nn.init.calculate_gain('relu')
-        nn.init.xavier_normal_(self.od_fc.weight, gain=gain)
-
-    def predict_request_graphs(self, embed_feat, demands):
+    def predict_request_graphs(self, embed_feat, demands, ref_G=None):
         num_nodes = embed_feat.shape[-2]
         proj_embed_feat = self.Wa(embed_feat)
 
@@ -73,6 +67,8 @@ class TranAttLayer(nn.Module):
         del er_exp
 
         A = F.leaky_relu(A)
+        if ref_G is not None:
+            A *= ref_G
         Q = F.softmax(A, dim=-1)
         Q = F.dropout(Q, 0.1)
         del A
@@ -99,16 +95,12 @@ class TranAttLayer(nn.Module):
         if ref_D is not None:   # scale
             demands_out *= ref_D
         demands = demands_out.reshape(-1, num_nodes, 1)
+        del num_nodes
 
         if predict_G:
             # Predict Request Graph
-            req_gs = self.predict_request_graphs(embed_feat, demands)
+            req_gs = self.predict_request_graphs(embed_feat, demands, ref_G)
             del demands
-            if ref_G is not None:   # mean
-                req_gs = self.od_fc(torch.cat([req_gs.reshape(-1, num_nodes, num_nodes, 1), ref_G.reshape(-1, num_nodes, num_nodes, 1)], dim=-1))
-                req_gs = req_gs.reshape(-1, num_nodes, num_nodes)
-            del num_nodes
             return demands_out, req_gs
         else:
-            del num_nodes
             return demands_out, None

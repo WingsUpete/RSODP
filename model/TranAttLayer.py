@@ -99,14 +99,15 @@ class TranAttLayer(nn.Module):
         if ref_D is not None:   # scale
             demands_out *= ref_D
         demands = demands_out.reshape(-1, num_nodes, 1)
-        del num_nodes
 
         if predict_G:
             # Predict Request Graph
             req_gs = self.predict_request_graphs(embed_feat, demands)
             del demands
             if ref_G is not None:   # mean
-                req_gs = self.od_fc(torch.cat([req_gs, ref_G], dim=-1))
+                req_gs = self.od_fc(torch.cat([req_gs.reshape(-1, num_nodes, num_nodes, 1), ref_G.reshape(-1, num_nodes, num_nodes, 1)], dim=-1))
+            del num_nodes
             return demands_out, req_gs
         else:
+            del num_nodes
             return demands_out, None

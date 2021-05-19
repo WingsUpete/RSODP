@@ -87,7 +87,7 @@ class TranAttLayer(nn.Module):
         # Predict demands
         demands = self.demand_fc(embed_feat)
         if self.activate_function:
-            demands = self.activate_function(demands)
+            demands = self.activate_function(demands).clone()
         demands_out = demands.reshape(-1, num_nodes)
         if ref_D is not None:   # scale
             demands_out *= ref_D

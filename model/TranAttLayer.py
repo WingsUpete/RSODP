@@ -99,7 +99,7 @@ class TranAttLayer(nn.Module):
 
         if predict_G:
             # Predict Request Graph
-            req_gs = self.predict_request_graphs(embed_feat, demands, ref_G)
+            req_gs = self.predict_request_graphs(embed_feat, demands, ref_G=None)
             del demands
             return demands_out, req_gs
         else:

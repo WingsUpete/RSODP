@@ -67,11 +67,13 @@ class TranAttLayer(nn.Module):
         del er_exp
 
         A = F.leaky_relu(A)
-        if ref_G is not None:
-            A *= ref_G
         Q = F.softmax(A, dim=-1)
         Q = F.dropout(Q, 0.1)
         del A
+
+        if ref_G is not None:
+            norm_ref_G = F.normalize(ref_G, p=1.0, dim=-1)
+            Q = (Q + norm_ref_G) / 2
 
         # Expand D as well
         rel_D = demands.repeat(1, 1, num_nodes)
@@ -99,7 +101,7 @@ class TranAttLayer(nn.Module):
 
         if predict_G:
             # Predict Request Graph
-            req_gs = self.predict_request_graphs(embed_feat, demands, ref_G=None)
+            req_gs = self.predict_request_graphs(embed_feat, demands, ref_G=ref_G)
             del demands
             return demands_out, req_gs
         else:

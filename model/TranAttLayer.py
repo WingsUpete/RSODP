@@ -66,9 +66,8 @@ class TranAttLayer(nn.Module):
         del el_exp
         del er_exp
 
-        A = F.leaky_relu(A)
-        Q = F.softmax(A, dim=-1)
-        Q = F.dropout(Q, 0.1)
+        # Simple normalization
+        Q = F.normalize(A, p=1.0, dim=-1)
         del A
 
         if ref_G is not None:

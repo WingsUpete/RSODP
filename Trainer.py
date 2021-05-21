@@ -79,7 +79,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     predict_G = (train_type != 'pretrain')
     net = Gallat(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim)
     if train_type == 'retrain':
-        logr.log('> Loading the Pretrained Model: {}, Train type = {}\n'.format(model, train_type))
+        logr.log('> Loading the Pretrained Model: {}, Train type = {}\n'.format(retrain_model_path, train_type))
         net = torch.load(retrain_model_path)
     else:
         logr.log('> Initializing the Training Model: {}, Train type = {}\n'.format(model, train_type))

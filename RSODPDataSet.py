@@ -63,6 +63,7 @@ class RSODPDataSetEntity(DGLDataset):
             cur_sample_GDs[temp_feat] = temp_feat_sample_GDs
 
         cur_sample_data = {
+            'T': cur_T,
             'target_G': G_Tp1,
             'target_D': D_Tp1,
             'query': Q_Tp1,

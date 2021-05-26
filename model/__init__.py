@@ -1,2 +1,2 @@
 from .Gallat import Gallat
-from .GallatExt import GallatExt
+from .GallatExt import GallatExt, GallatExtFull

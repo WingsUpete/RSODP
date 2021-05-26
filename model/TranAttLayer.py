@@ -97,7 +97,7 @@ class TranAttLayer(nn.Module):
         demands_out = demands.reshape(-1, num_nodes)
         if ref_D is not None:   # scale
             demands_out *= ref_D
-            demands_out = (demands_out + ref_D) / 2
+            # demands_out = (demands_out + ref_D) / 2
         demands = demands_out.reshape(-1, num_nodes, 1)
         del num_nodes
 

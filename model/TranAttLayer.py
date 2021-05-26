@@ -102,6 +102,8 @@ class TranAttLayer(nn.Module):
             # Predict Request Graph
             req_gs = self.predict_request_graphs(embed_feat, demands, ref_G=ref_G)
             del demands
+            if ref_G is not None:
+                req_gs = (req_gs + ref_G) / 2
             return demands_out, req_gs
         else:
             return demands_out, None

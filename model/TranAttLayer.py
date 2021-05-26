@@ -74,6 +74,8 @@ class TranAttLayer(nn.Module):
             norm_ref_G = F.normalize(ref_G, p=1.0, dim=-1)
             Q = (Q + norm_ref_G) / 2
 
+        Q = F.dropout(Q, p=0.1)
+
         # Expand D as well
         rel_D = demands.repeat(1, 1, num_nodes)
 
@@ -95,6 +97,7 @@ class TranAttLayer(nn.Module):
         demands_out = demands.reshape(-1, num_nodes)
         if ref_D is not None:   # scale
             demands_out *= ref_D
+            demands_out = (demands_out + ref_D) / 2
         demands = demands_out.reshape(-1, num_nodes, 1)
         del num_nodes
 

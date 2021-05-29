@@ -66,7 +66,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
           metrics_threshold=Config.METRICS_THRESHOLD_DEFAULT, total_H=Config.DATA_TOTAL_H, start_H=Config.DATA_START_H,
           hidden_dim=Config.HIDDEN_DIM_DEFAULT, feat_dim=Config.FEAT_DIM_DEFAULT, query_dim=Config.QUERY_DIM_DEFAULT,
           scale_factor_d=Config.SCALE_FACTOR_DEFAULT_D, scale_factor_g=Config.SCALE_FACTOR_DEFAULT_G,
-          retrain_model_path=Config.RETRAIN_MODEL_PATH_DEFAULT, loss_function=Config.LOSS_FUNC_DEFAULT):
+          retrain_model_path=Config.RETRAIN_MODEL_PATH_DEFAULT, loss_function=Config.LOSS_FUNC_DEFAULT,
+          tune=True):
     # Load DataSet
     logr.log('> Loading DataSet from {}\n'.format(data_dir))
     dataset = RSODPDataSet(data_dir, his_rec_num=Config.HISTORICAL_RECORDS_NUM_DEFAULT, time_slot_endurance=Config.TIME_SLOT_ENDURANCE_DEFAULT, total_H=total_H, start_at=start_H)
@@ -133,7 +134,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     # Summarize Info
     logr.log('\nlearning_rate = {}, epochs = {}, num_workers = {}\n'.format(lr, ep, num_workers))
     logr.log('eval_freq = {}, batch_size = {}, optimizer = {}\n'.format(eval_freq, bs, opt))
-    logr.log('scaling Factor for: d = %.2f, g = %.2f\n' % (scale_factor_d.item(), scale_factor_g.item()))
+    logr.log('scaling Factor for: d = %.2f, g = %.2f, tune = %s\n' % (scale_factor_d.item(), scale_factor_g.item(), str(tune)))
 
     # Start Training
     logr.log('\nStart Training!\n')
@@ -167,7 +168,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
             #         loss = criterion_D(res_D, target_D) if pretrain else (criterion_D(res_D, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G) * Config.G_PERCENTAGE_DEFAULT)
             # logr.log(prof.key_averages().table(sort_by="cuda_time_total"))
 
-            ref_D, ref_G = avgRec(record_GD)
+            ref_D, ref_G = avgRec(record_GD) if tune else (None, None)
             res_D, res_G = net(record, query, ref_D, ref_G, predict_G=predict_G)  # if pretrain, res_G = None
             loss = (criterion_D(res_D * scale_factor_d, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G * scale_factor_g, target_G) * Config.G_PERCENTAGE_DEFAULT) if predict_G else criterion_D(res_D * scale_factor_d, target_D)
 
@@ -209,7 +210,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                     if device:
                         val_record, val_record_GD, val_query, val_target_G, val_target_D = batch2device(val_record, val_record_GD, val_query, val_target_G, val_target_D, device)
 
-                    val_ref_D, val_ref_G = avgRec(val_record_GD)
+                    val_ref_D, val_ref_G = avgRec(val_record_GD) if tune else (None, None)
                     val_res_D, val_res_G = net(val_record, val_query, val_ref_D, val_ref_G, predict_G=True)
                     val_loss = criterion_D(val_res_D * scale_factor_d, val_target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(val_res_G * scale_factor_g, val_target_G) * Config.G_PERCENTAGE_DEFAULT
 
@@ -240,7 +241,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
 def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT, use_gpu=True,
              data_dir=Config.DATA_DIR_DEFAULT, logr=Logger(activate=False),
              total_H=Config.DATA_TOTAL_H, start_H=Config.DATA_START_H,
-             scale_factor_d=Config.SCALE_FACTOR_DEFAULT_D, scale_factor_g=Config.SCALE_FACTOR_DEFAULT_G):
+             scale_factor_d=Config.SCALE_FACTOR_DEFAULT_D, scale_factor_g=Config.SCALE_FACTOR_DEFAULT_G,
+             tune=True):
     """
         Evaluate using saved best model (Note that this is a Test API)
         1. Re-evaluate on the validation set
@@ -295,7 +297,7 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
             if device:
                 val_record, val_record_GD, val_query, val_target_G, val_target_D = batch2device(val_record, val_record_GD, val_query, val_target_G, val_target_D, device)
 
-            val_ref_D, val_ref_G = avgRec(val_record_GD)
+            val_ref_D, val_ref_G = avgRec(val_record_GD) if tune else (None, None)
             val_res_D, val_res_G = net(val_record, val_query, val_ref_D, val_ref_G, predict_G=True)
 
             for mi in range(num_metrics_threshold):     # for the (mi)th threshold
@@ -337,7 +339,7 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
                 if device:
                     test_record, test_record_GD, test_query, test_target_G, test_target_D = batch2device(test_record, test_record_GD, test_query, test_target_G, test_target_D, device)
 
-                test_ref_D, test_ref_G = avgRec(test_record_GD)
+                test_ref_D, test_ref_G = avgRec(test_record_GD) if tune else (None, None)
                 test_res_D, test_res_G = net(test_record, test_query, test_ref_D, test_ref_G, predict_G=True)
 
                 for mi in range(num_metrics_threshold):  # for the (mi)th threshold
@@ -397,6 +399,7 @@ if __name__ == '__main__':
     parser.add_argument('-sfg', '--scale_factor_g', type=float, default=Config.SCALE_FACTOR_DEFAULT_G, help='scale factor for model output g, default = {}'.format(Config.SCALE_FACTOR_DEFAULT_G))
     parser.add_argument('-r', '--retrain_model_path', type=str, default=Config.RETRAIN_MODEL_PATH_DEFAULT, help='Specify the location of the model to be retrained if train type is retrain, default = {}'.format(Config.RETRAIN_MODEL_PATH_DEFAULT))
     parser.add_argument('-lf', '--loss_function', type=str, default=Config.LOSS_FUNC_DEFAULT, help='Specify which loss function to use, default = {}'.format(Config.LOSS_FUNC_DEFAULT))
+    parser.add_argument('-t', '--tune', type=int, default=Config.TUNE_DEFAULT, help='Specify whether to tune in the transferring layer of the model, default = {}'.format(Config.TUNE_DEFAULT))
 
     FLAGS, unparsed = parser.parse_known_args()
 
@@ -413,7 +416,8 @@ if __name__ == '__main__':
               total_H=FLAGS.hours, start_H=FLAGS.start_hour, hidden_dim=FLAGS.hidden_dim,
               feat_dim=FLAGS.feature_dim, query_dim=FLAGS.query_dim,
               scale_factor_d=torch.Tensor([FLAGS.scale_factor_d]), scale_factor_g=torch.Tensor([FLAGS.scale_factor_g]),
-              retrain_model_path=FLAGS.retrain_model_path, loss_function=FLAGS.loss_function)
+              retrain_model_path=FLAGS.retrain_model_path, loss_function=FLAGS.loss_function,
+              tune=(FLAGS.tune == 1))
         logger.close()
     elif working_mode == 'eval':
         eval_file = FLAGS.eval
@@ -426,7 +430,8 @@ if __name__ == '__main__':
         evaluate(eval_file, bs=FLAGS.batch_size, num_workers=FLAGS.cores, use_gpu=(FLAGS.gpu == 1),
                  data_dir=FLAGS.data_dir, logr=logger, total_H=FLAGS.hours, start_H=FLAGS.start_hour,
                  scale_factor_d=torch.Tensor([FLAGS.scale_factor_d]),
-                 scale_factor_g=torch.Tensor([FLAGS.scale_factor_g]))
+                 scale_factor_g=torch.Tensor([FLAGS.scale_factor_g]),
+                 tune=(FLAGS.tune == 1))
         logger.close()
     else:
         sys.stderr.write('Please specify the running mode (train/eval)\n')

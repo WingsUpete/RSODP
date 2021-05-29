@@ -128,7 +128,6 @@ def trainLog2LossCurve(logfn='train.log'):
     plt.savefig(figpath)
     print('Loss curve saved to {}'.format(figpath))
 
-
     print('All analysis tasks finished.')
 
 

@@ -67,7 +67,7 @@ class TranAttLayer(nn.Module):
         del er_exp
 
         # Simple normalization
-        Q = F.normalize(A, p=1.0, dim=-1)
+        Q = F.softmax(A, dim=-1)
         del A
 
         if ref_G is not None:
@@ -105,8 +105,6 @@ class TranAttLayer(nn.Module):
             # Predict Request Graph
             req_gs = self.predict_request_graphs(embed_feat, demands, ref_G=ref_G)
             del demands
-            if ref_G is not None:
-                req_gs = (req_gs + ref_G) / 2
             return demands_out, req_gs
         else:
             return demands_out, None

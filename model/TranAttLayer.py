@@ -50,7 +50,7 @@ class TranAttLayer(nn.Module):
         nn.init.xavier_normal_(self.att_out_fc_l.weight, gain=gain)
         nn.init.xavier_normal_(self.att_out_fc_r.weight, gain=gain)
 
-    def predict_request_graphs(self, embed_feat, demands, ref_G=None):
+    def predict_request_graphs(self, embed_feat, demands, ref_G=None, ref_extent=0.2):
         num_nodes = embed_feat.shape[-2]
         proj_embed_feat = self.Wa(embed_feat)
 
@@ -72,7 +72,7 @@ class TranAttLayer(nn.Module):
 
         if ref_G is not None:
             norm_ref_G = F.normalize(ref_G, p=1.0, dim=-1)
-            Q = (Q + norm_ref_G) / 2
+            Q = Q * (1 - ref_extent) + norm_ref_G * ref_extent
 
         Q = F.dropout(Q, p=0.1)
 
@@ -87,7 +87,7 @@ class TranAttLayer(nn.Module):
 
         return G
 
-    def forward(self, embed_feat, predict_G, ref_D=None, ref_G=None):
+    def forward(self, embed_feat, predict_G, ref_D=None, ref_G=None, ref_extent=0.2):
         num_nodes = embed_feat.shape[-2]
 
         # Predict demands
@@ -95,15 +95,14 @@ class TranAttLayer(nn.Module):
         if self.activate_function:
             demands = self.activate_function(demands).clone()
         demands_out = demands.reshape(-1, num_nodes)
-        if ref_D is not None:   # scale
-            demands_out *= ref_D
-            # demands_out = (demands_out + ref_D) / 2
+        if ref_D is not None:
+            demands_out = demands_out * (1 - ref_extent) + ref_D * ref_extent
         demands = demands_out.reshape(-1, num_nodes, 1)
         del num_nodes
 
         if predict_G:
             # Predict Request Graph
-            req_gs = self.predict_request_graphs(embed_feat, demands, ref_G=ref_G)
+            req_gs = self.predict_request_graphs(embed_feat, demands, ref_G=ref_G, ref_extent=ref_extent)
             del demands
             return demands_out, req_gs
         else:

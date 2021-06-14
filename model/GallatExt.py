@@ -32,7 +32,7 @@ class GallatExt(nn.Module):
         # Transferring Attention Layer
         self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim, activate_function_method=None)
 
-    def forward(self, record, query, ref_D=None, ref_G=None, predict_G=False):
+    def forward(self, record, query, ref_D=None, ref_G=None, predict_G=False, ref_extent=0.2):
         # Extract spatial features
         spat_embed_dict = {}
         for temp_feat in TEMP_FEAT_NAMES:
@@ -48,7 +48,7 @@ class GallatExt(nn.Module):
             torch.cuda.empty_cache()
 
         # Transferring features to perform predictions
-        res = self.tranAttLayer(temp_embed, predict_G, ref_D, ref_G)
+        res = self.tranAttLayer(temp_embed, predict_G, ref_D, ref_G, ref_extent)
 
         return res
 
@@ -74,7 +74,7 @@ class GallatExtFull(nn.Module):
         # Transferring Attention Layer
         self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim, activate_function_method=None)
 
-    def forward(self, record, query, ref_D=None, ref_G=None, predict_G=False):
+    def forward(self, record, query, ref_D=None, ref_G=None, predict_G=False, ref_extent=0.2):
         # Extract spatial features
         spat_embed_dict = {}
         for temp_feat in TEMP_FEAT_NAMES:
@@ -90,6 +90,6 @@ class GallatExtFull(nn.Module):
             torch.cuda.empty_cache()
 
         # Transferring features to perform predictions
-        res = self.tranAttLayer(temp_embed, predict_G, ref_D, ref_G)
+        res = self.tranAttLayer(temp_embed, predict_G, ref_D, ref_G, ref_extent)
 
         return res

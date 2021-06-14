@@ -38,7 +38,7 @@ Our model is named as **GallatExt** since it is an extension version of [Gallat]
 
 ### Baseline
 
-#### HA^+^ (Historical Average)
+#### <img src="https://render.githubusercontent.com/render/math?math=HA^{%2b}"> (Historical Average)
 
 Historical Average is the very baseline method which computes the average of the historical demands from the previous time slots. For improvement, we further consider the four temporal aspects in our Temporal Attention Layer design while calculate the average of all these values directly.
 
@@ -46,7 +46,7 @@ Historical Average is the very baseline method which computes the average of the
 
 Our model is extended from [Gallat](https://arxiv.org/pdf/2101.00752.pdf) (Graph prediction with all attention), so it is considered as an important baseline model for comparison.
 
-#### Gallat^+^
+#### <img src="https://render.githubusercontent.com/render/math?math=Gallat^{%2b}">
 
 We combine the original Gallat with our idea of fine-tuning in the Transferring Layer since the original Gallat does not appear to achieve better results than the baseline HA.
 

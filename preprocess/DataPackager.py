@@ -171,6 +171,9 @@ def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_n
         os.mkdir(curDir)
 
     dayOfWeek = lowT.weekday()  # Mon: 0, ..., Sun: 6
+    oneHotDOW = [1 if j == dayOfWeek else 0 for j in range(7)]
+    hourOfDay = lowT.hour
+    oneHotHOD = [1 if j == hourOfDay else 0 for j in range(24)]
 
     GDVQ = {}
 
@@ -200,11 +203,9 @@ def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_n
 
     for vi in range(len(grid_nodes)):
         viRow, viCol = ID2Coord(vi, grid_info)
-        query_feature_vector = [1 if i == dayOfWeek else 0 for i in range(7)] + [
+        query_feature_vector = oneHotDOW + oneHotHOD + [
             viRow / grid_info['latGridNum'],
             viCol / grid_info['lngGridNum'],
-            vi / grid_info['gridNum'],
-            torch.sigmoid(torch.Tensor([curH])).item()
         ]
         query_feature_vectors.append(query_feature_vector)
         feature_vector = query_feature_vector + [

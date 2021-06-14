@@ -26,3 +26,6 @@ data/
 
 # Results
 res/
+
+# Bash
+Trainer.sh

@@ -29,7 +29,7 @@ class TranAttLayer(nn.Module):
             gain_val = 0.75
         else:   # Do not use activation
             self.activate_function = None
-            gain_val = nn.init.calculate_gain('relu')
+            gain_val = nn.init.calculate_gain('linear')
 
         # Shared Weight W_a for AttentionNet
         self.Wa = nn.Linear(self.embed_dim, self.embed_dim, bias=False)
@@ -68,13 +68,16 @@ class TranAttLayer(nn.Module):
 
         # Simple normalization
         Q = F.softmax(A, dim=-1)
-        del A
 
         if ref_G is not None:
             norm_ref_G = F.normalize(ref_G, p=1.0, dim=-1)
-            Q = Q * (1 - ref_extent) + norm_ref_G * ref_extent
+            if ref_extent == -1:
+                Q = F.softmax(norm_ref_G * A, dim=-1)
+            else:
+                Q = Q * (1 - ref_extent) + norm_ref_G * ref_extent
 
         Q = F.dropout(Q, p=0.1)
+        del A
 
         # Expand D as well
         rel_D = demands.repeat(1, 1, num_nodes)
@@ -96,7 +99,10 @@ class TranAttLayer(nn.Module):
             demands = self.activate_function(demands).clone()
         demands_out = demands.reshape(-1, num_nodes)
         if ref_D is not None:
-            demands_out = demands_out * (1 - ref_extent) + ref_D * ref_extent
+            if ref_extent == -1:
+                demands_out = demands_out * ref_D
+            else:
+                demands_out = demands_out * (1 - ref_extent) + ref_D * ref_extent
         demands = demands_out.reshape(-1, num_nodes, 1)
         del num_nodes
 

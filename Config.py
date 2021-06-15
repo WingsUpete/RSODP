@@ -37,7 +37,7 @@ TEMP_FEAT_NAMES = ['St', 'Sp', 'Stpm', 'Stpp']
 D_PERCENTAGE_DEFAULT = 0.8
 G_PERCENTAGE_DEFAULT = 1 - D_PERCENTAGE_DEFAULT
 
-REF_EXTENT = 0.2
+REF_EXTENT = 0.2    # If -1, using scaling factor scheme; Else, a simple leverage
 
 TRAIN_TYPES = ['normal', 'pretrain', 'retrain']
 TRAIN_TYPE_DEFAULT = 'normal'

@@ -139,7 +139,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     logr.log('\nlearning_rate = {}, epochs = {}, num_workers = {}\n'.format(lr, ep, num_workers))
     logr.log('eval_freq = {}, batch_size = {}, optimizer = {}\n'.format(eval_freq, bs, opt))
     logr.log('scaling Factor for: d = %.2f, g = %.2f\n' % (scale_factor_d.item(), scale_factor_g.item()))
-    logr.log('tune = %s%s\n' % (str(tune), ", ref_extent=%.2f" % ref_ext.item() if tune else ""))
+    logr.log('tune = %s%s\n' % (str(tune), ", ref_extent = %.2f" % ref_ext.item() if tune else ""))
 
     # Start Training
     logr.log('\nStart Training!\n')

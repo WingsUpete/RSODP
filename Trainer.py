@@ -16,7 +16,7 @@ from dgl.dataloading import GraphDataLoader
 sys.stderr.close()
 sys.stderr = stderr
 
-from utils import Logger, RMSE, MAE, MAPE
+from utils import Logger, RMSE, MAE, MAPE, plot_grad_flow
 from RSODPDataSet import RSODPDataSet
 from model import Gallat, GallatExt, GallatExtFull
 
@@ -178,6 +178,10 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
             loss = (criterion_D(res_D * scale_factor_d, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G * scale_factor_g, target_G) * Config.G_PERCENTAGE_DEFAULT) if predict_G else criterion_D(res_D * scale_factor_d, target_D)
 
             loss.backward()
+
+            if Config.CHECK_GRADS:
+                plot_grad_flow(net.named_parameters())
+
             optimizer.step()
 
             # Analysis

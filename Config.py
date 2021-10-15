@@ -1,5 +1,8 @@
 import torch
 
+# DEBUG FLAGS
+CHECK_GRADS = False
+
 # Basic
 LEARNING_RATE_DEFAULT = 1e-2    # 0.01
 MAX_EPOCHS_DEFAULT = 200

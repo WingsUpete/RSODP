@@ -31,26 +31,18 @@ def haversine(c0, c1):
     return dist
 
 
-def filter_with_threshold(x: torch.Tensor, threshold: torch.Tensor):
-    """
-    Filter out values below the threshold (they will become the threshold)
-    :param x: a tensor
-    :param threshold: single-value tensor containing the threshold
-    :return: filtered tensor
-    """
-    return torch.max(x, threshold)
-
-
 def RMSE(y_pred: torch.Tensor, y_true: torch.Tensor, threshold=ZERO_TENSOR):
     """
     RMSE (Root Mean Squared Error)
     :param y_pred: prediction tensor
     :param y_true: target tensor
-    :param threshold: single-value tensor - only values not below the threshold are considered (if threshold=3, result is RMSE-3)
+    :param threshold: single-value tensor - only values not below the threshold are considered (if threshold=3, result is RMSE-9)
     :return: RMSE-threshold
     """
-    y_pred_filter = filter_with_threshold(y_pred, threshold)
-    y_true_filter = filter_with_threshold(y_true, threshold)
+    threshold = threshold * threshold
+    y_true_mask = y_true > threshold
+    y_pred_filter = y_pred[y_true_mask]
+    y_true_filter = y_true[y_true_mask]
     return torch.sqrt(torch.mean(torch.pow((y_true_filter - y_pred_filter), 2)))
 
 
@@ -62,8 +54,9 @@ def MAE(y_pred, y_true, threshold=ZERO_TENSOR):
     :param threshold: single-value tensor - only values not below the threshold are considered (if threshold=3, result is MAE-3)
     :return: MAE-threshold
     """
-    y_pred_filter = filter_with_threshold(y_pred, threshold)
-    y_true_filter = filter_with_threshold(y_true, threshold)
+    y_true_mask = y_true > threshold
+    y_pred_filter = y_pred[y_true_mask]
+    y_true_filter = y_true[y_true_mask]
     return torch.mean(torch.abs(y_true_filter - y_pred_filter))
 
 
@@ -75,8 +68,9 @@ def MAPE(y_pred, y_true, threshold=ZERO_TENSOR):
     :param threshold: single-value tensor - only values not below the threshold are considered (if threshold=3, result is MAPE-3)
     :return: MAPE-threshold
     """
-    y_pred_filter = filter_with_threshold(y_pred, threshold)
-    y_true_filter = filter_with_threshold(y_true, threshold)
+    y_true_mask = y_true > threshold
+    y_pred_filter = y_pred[y_true_mask]
+    y_true_filter = y_true[y_true_mask]
     return torch.mean(torch.abs((y_true_filter - y_pred_filter)/(y_true_filter + 1)))
 
 

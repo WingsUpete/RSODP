@@ -334,7 +334,9 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
             logr.log('%s:\n' % metrics_for_what)
             for metrics in metrics_res[metrics_for_what]:
                 for mi in range(num_metrics_threshold):
-                    logr.log('%s-%d = %.4f%s' % (metrics, Config.EVAL_METRICS_THRESHOLD_SET[mi],
+                    cur_threshold = Config.EVAL_METRICS_THRESHOLD_SET[mi]
+                    logr.log('%s-%d = %.4f%s' % (metrics,
+                                                 int(cur_threshold * cur_threshold) if metrics == 'RMSE' else cur_threshold,
                                                  metrics_res[metrics_for_what][metrics][mi],
                                                  (', ' if mi != num_metrics_threshold - 1 else '\n')))
 
@@ -376,7 +378,9 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
                 logr.log('%s:\n' % metrics_for_what)
                 for metrics in metrics_res[metrics_for_what]:
                     for mi in range(num_metrics_threshold):
-                        logr.log('%s-%d = %.4f%s' % (metrics, Config.EVAL_METRICS_THRESHOLD_SET[mi],
+                        cur_threshold = Config.EVAL_METRICS_THRESHOLD_SET[mi]
+                        logr.log('%s-%d = %.4f%s' % (metrics,
+                                                     int(cur_threshold * cur_threshold) if metrics == 'RMSE' else cur_threshold,
                                                      metrics_res[metrics_for_what][metrics][mi],
                                                      (', ' if mi != num_metrics_threshold - 1 else '\n')))
 

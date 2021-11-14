@@ -36,10 +36,9 @@ def RMSE(y_pred: torch.Tensor, y_true: torch.Tensor, threshold=ZERO_TENSOR):
     RMSE (Root Mean Squared Error)
     :param y_pred: prediction tensor
     :param y_true: target tensor
-    :param threshold: single-value tensor - only values not below the threshold are considered (if threshold=3, result is RMSE-9)
+    :param threshold: single-value tensor - only values above the threshold are considered
     :return: RMSE-threshold
     """
-    threshold = threshold * threshold
     y_true_mask = y_true > threshold
     y_pred_filter = y_pred[y_true_mask]
     y_true_filter = y_true[y_true_mask]
@@ -51,7 +50,7 @@ def MAE(y_pred, y_true, threshold=ZERO_TENSOR):
     MAE (Mean Absolute Error)
     :param y_pred: prediction tensor
     :param y_true: target tensor
-    :param threshold: single-value tensor - only values not below the threshold are considered (if threshold=3, result is MAE-3)
+    :param threshold: single-value tensor - only values above the threshold are considered (if threshold=3, result is MAE-3)
     :return: MAE-threshold
     """
     y_true_mask = y_true > threshold
@@ -65,7 +64,7 @@ def MAPE(y_pred, y_true, threshold=ZERO_TENSOR):
     MAPE (Mean Absolute Percentage Error)
     :param y_pred: prediction tensor
     :param y_true: target tensor
-    :param threshold: single-value tensor - only values not below the threshold are considered (if threshold=3, result is MAPE-3)
+    :param threshold: single-value tensor - only values above the threshold are considered (if threshold=3, result is MAPE-3)
     :return: MAPE-threshold
     """
     y_true_mask = y_true > threshold

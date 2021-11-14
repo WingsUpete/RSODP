@@ -36,6 +36,7 @@ TIME_SLOT_ENDURANCE_DEFAULT = 1     # hour
 TUNE_DEFAULT = 1
 
 TEMP_FEAT_NAMES = ['St', 'Sp', 'Stpm', 'Stpp']
+HA_FEAT_DEFAULT = 'all'     # ['all', 'tendency', 'periodicity']
 
 D_PERCENTAGE_DEFAULT = 0.8
 G_PERCENTAGE_DEFAULT = 1 - D_PERCENTAGE_DEFAULT

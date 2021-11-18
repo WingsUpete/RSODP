@@ -19,6 +19,7 @@ sys.stderr = stderr
 from utils import Logger, RMSE, MAE, MAPE, plot_grad_flow
 from RSODPDataSet import RSODPDataSet
 from model import Gallat, GallatExt, GallatExtFull
+from HistoricalAverage import avgRec
 
 import Config
 
@@ -38,25 +39,6 @@ def batch2device(record: dict, record_GD: dict, query: torch.Tensor, target_G: t
     target_D = target_D.to(device)
 
     return record, record_GD, query, target_G, target_D
-
-
-def avgRec(records: dict):
-    # Aggregate features for each temporal feature set
-    res0 = {}
-    for temp_feat in Config.TEMP_FEAT_NAMES:
-        curDList = [records[temp_feat][i][0] for i in range(len(records[temp_feat]))]
-        curGList = [records[temp_feat][i][1] for i in range(len(records[temp_feat]))]
-        avgD = sum(curDList) / len(curDList)
-        avgG = sum(curGList) / len(curGList)
-        res0[temp_feat] = (avgD, avgG)
-
-    # Aggregate features altogether
-    allD = [res0[temp_feat][0] for temp_feat in res0]
-    allG = [res0[temp_feat][1] for temp_feat in res0]
-    avgD = sum(allD) / len(allD)
-    avgG = sum(allG) / len(allG)
-
-    return avgD, avgG
 
 
 def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Config.MAX_EPOCHS_DEFAULT,

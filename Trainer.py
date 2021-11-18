@@ -202,13 +202,13 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                         val_record, val_record_GD, val_query, val_target_G, val_target_D = batch2device(val_record, val_record_GD, val_query, val_target_G, val_target_D, device)
 
                     val_ref_D, val_ref_G = avgRec(val_record_GD) if tune else (None, None)
-                    val_res_D, val_res_G = net(val_record, val_query, val_ref_D, val_ref_G, predict_G=True, ref_extent=ref_ext)
-                    val_loss = criterion_D(val_res_D * scale_factor_d, val_target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(val_res_G * scale_factor_g, val_target_G) * Config.G_PERCENTAGE_DEFAULT
+                    val_res_D, val_res_G = net(val_record, val_query, val_ref_D, val_ref_G, predict_G=predict_G, ref_extent=ref_ext)
+                    val_loss = criterion_D(val_res_D * scale_factor_d, val_target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(val_res_G * scale_factor_g, val_target_G) * Config.G_PERCENTAGE_DEFAULT if predict_G else criterion_D(val_res_D * scale_factor_d, val_target_D)
 
                     val_loss_total += val_loss.item()
-                    val_rmse += (RMSE(val_res_D * scale_factor_d, val_target_D, metrics_threshold) * Config.D_PERCENTAGE_DEFAULT + RMSE(val_res_G * scale_factor_g, val_target_G, metrics_threshold) * Config.G_PERCENTAGE_DEFAULT).item()
-                    val_mape += (MAPE(val_res_D * scale_factor_d, val_target_D, metrics_threshold) * Config.D_PERCENTAGE_DEFAULT + MAPE(val_res_G * scale_factor_g, val_target_G, metrics_threshold) * Config.G_PERCENTAGE_DEFAULT).item()
-                    val_mae += (MAE(val_res_D * scale_factor_d, val_target_D, metrics_threshold) * Config.D_PERCENTAGE_DEFAULT + MAE(val_res_G * scale_factor_g, val_target_G, metrics_threshold) * Config.G_PERCENTAGE_DEFAULT).item()
+                    val_rmse += (RMSE(val_res_D * scale_factor_d, val_target_D, metrics_threshold) * Config.D_PERCENTAGE_DEFAULT + RMSE(val_res_G * scale_factor_g, val_target_G, metrics_threshold) * Config.G_PERCENTAGE_DEFAULT).item() if predict_G else RMSE(val_res_D * scale_factor_d, val_target_D, metrics_threshold).item()
+                    val_mape += (MAPE(val_res_D * scale_factor_d, val_target_D, metrics_threshold) * Config.D_PERCENTAGE_DEFAULT + MAPE(val_res_G * scale_factor_g, val_target_G, metrics_threshold) * Config.G_PERCENTAGE_DEFAULT).item() if predict_G else MAPE(val_res_D * scale_factor_d, val_target_D, metrics_threshold).item()
+                    val_mae += (MAE(val_res_D * scale_factor_d, val_target_D, metrics_threshold) * Config.D_PERCENTAGE_DEFAULT + MAE(val_res_G * scale_factor_g, val_target_G, metrics_threshold) * Config.G_PERCENTAGE_DEFAULT).item() if predict_G else MAE(val_res_D * scale_factor_d, val_target_D, metrics_threshold).item()
 
                 val_loss_total /= len(validloader)
                 val_rmse /= len(validloader)

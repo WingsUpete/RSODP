@@ -4,36 +4,19 @@ A baseline model called HA - Historical Average: Calculate average values accord
 import os
 import sys
 import argparse
-import time
 
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 
 stderr = sys.stderr
 sys.stderr = open(os.devnull, 'w')
-import dgl
 from dgl.dataloading import GraphDataLoader
 sys.stderr.close()
 sys.stderr = stderr
 
-from utils import Logger, RMSE, MAE, MAPE
+from utils import Logger, batch2device, evalMetrics
 from RSODPDataSet import RSODPDataSet
 
 import Config
-
-
-def batch2device(record: dict, target_G: torch.Tensor, target_D: torch.Tensor, device):
-    """ Transfer all sample data into the device (cpu/gpu) """
-    # Transfer record
-    for temp_feat in Config.TEMP_FEAT_NAMES:
-        record[temp_feat] = [(D.to(device), G.to(device)) for (D, G) in record[temp_feat]]
-
-    # Transfer target
-    target_G = target_G.to(device)
-    target_D = target_D.to(device)
-
-    return record, target_G, target_D
 
 
 def avgRec(records: dict, scheme='all'):
@@ -64,6 +47,17 @@ def avgRec(records: dict, scheme='all'):
     return avgD, avgG
 
 
+def batch2res(batch, device, args):
+    scheme = args
+    recordGD, target_G, target_D = batch['record_GD'], batch['target_G'], batch['target_D']
+    if device:
+        _, recordGD, _, target_G, target_D = batch2device(record=None, record_GD=recordGD, query=None,
+                                                          target_G=target_G, target_D=target_D, device=device)
+
+    res_D, res_G = avgRec(recordGD, scheme=scheme)
+    return res_D, res_G, target_D, target_G
+
+
 def HA(bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT, logr=Logger(activate=False), use_gpu=True,
        data_dir=Config.DATA_DIR_DEFAULT, total_H=Config.DATA_TOTAL_H, start_H=Config.DATA_START_H,
        scheme=Config.HA_FEAT_DEFAULT):
@@ -73,12 +67,12 @@ def HA(bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT, logr=Lo
         2. Re-evaluate on the test set
         The evaluation metrics include RMSE, MAPE, MAE
     """
-    # Historical Average
-    logr.log('> Using HA (Historical Average) [%s] baseline model.\n' % scheme)
-
     # CUDA if needed
     device = torch.device('cuda:0' if (use_gpu and torch.cuda.is_available()) else 'cpu')
     logr.log('> device: {}\n'.format(device))
+
+    # Historical Average
+    logr.log('> Using HA (Historical Average) [%s] baseline model.\n' % scheme)
 
     # Load DataSet
     logr.log('> Loading DataSet from {}\n'.format(data_dir))
@@ -88,92 +82,12 @@ def HA(bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT, logr=Lo
     logr.log('> Validation batches: {}, Test batches: {}\n'.format(len(validloader), len(testloader)))
 
     # 1.
-    # Metrics with thresholds
-    num_metrics_threshold = len(Config.EVAL_METRICS_THRESHOLD_SET)
-    metrics_res = {'Demand': {}, 'OD': {}}
-    for metrics_for_what in metrics_res:
-        metrics_res[metrics_for_what] = {
-            'RMSE': torch.zeros(num_metrics_threshold),
-            'MAPE': torch.zeros(num_metrics_threshold),
-            'MAE': torch.zeros(num_metrics_threshold),
-        }
-    if device:
-        metrics_thresholds = [torch.Tensor([threshold]).to(device) for threshold in Config.EVAL_METRICS_THRESHOLD_SET]
-    # Clean GPU memory
-    if device.type == 'cuda':
-        torch.cuda.empty_cache()
-    with torch.no_grad():
-        for j, val_batch in enumerate(validloader):
-            val_record, val_target_G, val_target_D = val_batch['record_GD'], val_batch['target_G'], val_batch['target_D']
-            if device:
-                val_record, val_target_G, val_target_D = batch2device(val_record, val_target_G, val_target_D, device)
-
-            val_res_D, val_res_G = avgRec(val_record, scheme=scheme)
-
-            for mi in range(num_metrics_threshold):     # for the (mi)th threshold
-                metrics_res['Demand']['RMSE'][mi] += RMSE(val_res_D, val_target_D, metrics_thresholds[mi]).item()
-                metrics_res['Demand']['MAPE'][mi] += MAPE(val_res_D, val_target_D, metrics_thresholds[mi]).item()
-                metrics_res['Demand']['MAE'][mi] += MAE(val_res_D, val_target_D, metrics_thresholds[mi]).item()
-                metrics_res['OD']['RMSE'][mi] += RMSE(val_res_G, val_target_G, metrics_thresholds[mi]).item()
-                metrics_res['OD']['MAPE'][mi] += MAPE(val_res_G, val_target_G, metrics_thresholds[mi]).item()
-                metrics_res['OD']['MAE'][mi] += MAE(val_res_G, val_target_G, metrics_thresholds[mi]).item()
-
-        for metrics_for_what in metrics_res:
-            for metrics in metrics_res[metrics_for_what]:
-                metrics_res[metrics_for_what][metrics] /= len(validloader)
-
-        logr.log('> Metrics Evaluations for Validation Set:\n')
-        for metrics_for_what in metrics_res:
-            logr.log('%s:\n' % metrics_for_what)
-            for metrics in metrics_res[metrics_for_what]:
-                for mi in range(num_metrics_threshold):
-                    cur_threshold = Config.EVAL_METRICS_THRESHOLD_SET[mi]
-                    logr.log('%s-%d = %.4f%s' % (metrics,
-                                                 cur_threshold,
-                                                 metrics_res[metrics_for_what][metrics][mi],
-                                                 (', ' if mi != num_metrics_threshold - 1 else '\n')))
+    evalMetrics(validloader, 'Validation', batch2res, device, logr,
+                scheme)
 
     # 2.
-    # Metrics with thresholds
-    for metrics_for_what in metrics_res:
-        metrics_res[metrics_for_what] = {
-            'RMSE': torch.zeros(num_metrics_threshold),
-            'MAPE': torch.zeros(num_metrics_threshold),
-            'MAE': torch.zeros(num_metrics_threshold),
-        }
-    # Clean GPU memory
-    if device.type == 'cuda':
-        torch.cuda.empty_cache()
-    with torch.no_grad():
-        for k, test_batch in enumerate(testloader):
-            test_record, test_target_G, test_target_D = test_batch['record_GD'], test_batch['target_G'], test_batch['target_D']
-            if device:
-                test_record, test_target_G, test_target_D = batch2device(test_record, test_target_G, test_target_D, device)
-
-            test_res_D, test_res_G = avgRec(test_record, scheme=scheme)
-
-            for mi in range(num_metrics_threshold):     # for the (mi)th threshold
-                metrics_res['Demand']['RMSE'][mi] += RMSE(test_res_D, test_target_D, metrics_thresholds[mi]).item()
-                metrics_res['Demand']['MAPE'][mi] += MAPE(test_res_D, test_target_D, metrics_thresholds[mi]).item()
-                metrics_res['Demand']['MAE'][mi] += MAE(test_res_D, test_target_D, metrics_thresholds[mi]).item()
-                metrics_res['OD']['RMSE'][mi] += RMSE(test_res_G, test_target_G, metrics_thresholds[mi]).item()
-                metrics_res['OD']['MAPE'][mi] += MAPE(test_res_G, test_target_G, metrics_thresholds[mi]).item()
-                metrics_res['OD']['MAE'][mi] += MAE(test_res_G, test_target_G, metrics_thresholds[mi]).item()
-
-        for metrics_for_what in metrics_res:
-            for metrics in metrics_res[metrics_for_what]:
-                metrics_res[metrics_for_what][metrics] /= len(testloader)
-
-        logr.log('> Metrics Evaluations for Test Set:\n')
-        for metrics_for_what in metrics_res:
-            logr.log('%s:\n' % metrics_for_what)
-            for metrics in metrics_res[metrics_for_what]:
-                for mi in range(num_metrics_threshold):
-                    cur_threshold = Config.EVAL_METRICS_THRESHOLD_SET[mi]
-                    logr.log('%s-%d = %.4f%s' % (metrics,
-                                                 cur_threshold,
-                                                 metrics_res[metrics_for_what][metrics][mi],
-                                                 (', ' if mi != num_metrics_threshold - 1 else '\n')))
+    evalMetrics(testloader, 'Test', batch2res, device, logr,
+                scheme)
 
 
 if __name__ == '__main__':

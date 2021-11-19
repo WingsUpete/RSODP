@@ -4,12 +4,12 @@ Utility functions
 import math
 
 import numpy as np
-import torch
 import os
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
+import torch
 
-ZERO_TENSOR = torch.Tensor([0])
+import Config
 
 
 def haversine(c0, c1):
@@ -31,46 +31,72 @@ def haversine(c0, c1):
     return dist
 
 
-def RMSE(y_pred: torch.Tensor, y_true: torch.Tensor, threshold=ZERO_TENSOR):
+def batch2device(record, record_GD: dict, query, target_G: torch.Tensor, target_D: torch.Tensor, device):
+    """ Transfer all sample data into the device (cpu/gpu) """
+    # Transfer record
+    for temp_feat in Config.TEMP_FEAT_NAMES:
+        if record is not None:
+            record[temp_feat] = [(fg.to(device), bg.to(device), gg.to(device)) for (fg, bg, gg) in record[temp_feat]]
+        record_GD[temp_feat] = [(curD.to(device), curG.to(device)) for (curD, curG) in record_GD[temp_feat]]
+
+    # Transfer query
+    if query is not None:
+        query = query.to(device)
+
+    # Transfer target
+    target_G = target_G.to(device)
+    target_D = target_D.to(device)
+
+    return record, record_GD, query, target_G, target_D
+
+
+def RMSE(y_pred: torch.Tensor, y_true: torch.Tensor, threshold=torch.Tensor([0])):
     """
     RMSE (Root Mean Squared Error)
     :param y_pred: prediction tensor
     :param y_true: target tensor
     :param threshold: single-value tensor - only values above the threshold are considered
-    :return: RMSE-threshold
+    :return: RMSE-threshold, number of items considered
     """
     y_true_mask = y_true > threshold
     y_pred_filter = y_pred[y_true_mask]
     y_true_filter = y_true[y_true_mask]
-    return torch.sqrt(torch.mean(torch.pow((y_true_filter - y_pred_filter), 2)))
+    return torch.sum(torch.pow((y_true_filter - y_pred_filter), 2)), len(y_true_filter)
 
 
-def MAE(y_pred, y_true, threshold=ZERO_TENSOR):
+def MAE(y_pred: torch.Tensor, y_true: torch.Tensor, threshold=torch.Tensor([0])):
     """
     MAE (Mean Absolute Error)
     :param y_pred: prediction tensor
     :param y_true: target tensor
     :param threshold: single-value tensor - only values above the threshold are considered (if threshold=3, result is MAE-3)
-    :return: MAE-threshold
+    :return: MAE-threshold, number of items considered
     """
     y_true_mask = y_true > threshold
     y_pred_filter = y_pred[y_true_mask]
     y_true_filter = y_true[y_true_mask]
-    return torch.mean(torch.abs(y_true_filter - y_pred_filter))
+    return torch.sum(torch.abs(y_true_filter - y_pred_filter)), len(y_true_filter)
 
 
-def MAPE(y_pred, y_true, threshold=ZERO_TENSOR):
+def MAPE(y_pred: torch.Tensor, y_true: torch.Tensor, threshold=torch.Tensor([0])):
     """
     MAPE (Mean Absolute Percentage Error)
     :param y_pred: prediction tensor
     :param y_true: target tensor
     :param threshold: single-value tensor - only values above the threshold are considered (if threshold=3, result is MAPE-3)
-    :return: MAPE-threshold
+    :return: MAPE-threshold, number of items considered
     """
     y_true_mask = y_true > threshold
     y_pred_filter = y_pred[y_true_mask]
     y_true_filter = y_true[y_true_mask]
-    return torch.mean(torch.abs((y_true_filter - y_pred_filter)/(y_true_filter + 1)))
+    return torch.sum(torch.abs((y_true_filter - y_pred_filter)/(y_true_filter + 1))), len(y_true_filter)
+
+
+METRICS_FUNCTIONS_MAP = {
+    'RMSE': RMSE,
+    'MAPE': MAPE,
+    'MAE': MAE,
+}
 
 
 def path2FileNameWithoutExt(path):
@@ -163,6 +189,59 @@ def plot_grad_flow(named_parameters):
     plt.show()
     plt.pause(5)
     plt.ioff()
+
+
+def evalMetrics(dataloader, eval_type, getResMethod, device, logr, *args):
+    # Metrics with thresholds
+    num_metrics_threshold = len(Config.EVAL_METRICS_THRESHOLD_SET)
+    metrics_res = {}
+    for metrics_for_what in Config.METRICS_FOR_WHAT:
+        metrics_res[metrics_for_what] = {}
+        for metrics in METRICS_FUNCTIONS_MAP:
+            metrics_res[metrics_for_what][metrics] = {'val': torch.zeros(num_metrics_threshold), 'num': torch.zeros(num_metrics_threshold)}
+    metrics_thresholds = [torch.Tensor([threshold]) for threshold in Config.EVAL_METRICS_THRESHOLD_SET]
+    if device:
+        metrics_thresholds = [torch.Tensor([threshold]).to(device) for threshold in Config.EVAL_METRICS_THRESHOLD_SET]
+    with torch.no_grad():
+        for j, batch in enumerate(dataloader):
+            # Clean GPU memory
+            if device.type == 'cuda':
+                torch.cuda.empty_cache()
+
+            res_D, res_G, target_D, target_G = getResMethod(batch, device, args)
+
+            for mi in range(num_metrics_threshold):     # for the (mi)th threshold
+                for metrics_for_what in metrics_res:
+                    curRes = -1
+                    curTar = -1
+                    if metrics_for_what == 'Demand':
+                        curRes, curTar = res_D, target_D
+                    elif metrics_for_what == 'OD':
+                        curRes, curTar = res_G, target_G
+                    for metrics in metrics_res[metrics_for_what]:
+                        curFunc = METRICS_FUNCTIONS_MAP[metrics]
+                        res, resN = curFunc(curRes, curTar, metrics_thresholds[mi])
+                        metrics_res[metrics_for_what][metrics]['val'][mi] += res.item()
+                        metrics_res[metrics_for_what][metrics]['num'][mi] += resN
+
+        for metrics_for_what in metrics_res:
+            for metrics in metrics_res[metrics_for_what]:
+                metrics_res[metrics_for_what][metrics]['val'] /= metrics_res[metrics_for_what][metrics]['num']
+                if metrics == 'RMSE':
+                    metrics_res[metrics_for_what][metrics]['val'] = torch.sqrt(metrics_res[metrics_for_what][metrics]['val'])
+
+        logr.log('> Metrics Evaluations for %s Set:\n' % eval_type)
+        for metrics_for_what in metrics_res:
+            logr.log('%s:\n' % metrics_for_what)
+            for metrics in metrics_res[metrics_for_what]:
+                for mi in range(num_metrics_threshold):
+                    cur_threshold = Config.EVAL_METRICS_THRESHOLD_SET[mi]
+                    logr.log('%s-%d = %.4f%s' % (metrics,
+                                                 cur_threshold,
+                                                 metrics_res[metrics_for_what][metrics]['val'][mi],
+                                                 (', ' if mi != num_metrics_threshold - 1 else '\n')))
+
+    return metrics_res
 
 
 # Test

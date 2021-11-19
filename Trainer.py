@@ -5,18 +5,16 @@ import time
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.autograd.profiler as profiler
 # torch.autograd.set_detect_anomaly(True)
 
 stderr = sys.stderr
 sys.stderr = open(os.devnull, 'w')
-import dgl
 from dgl.dataloading import GraphDataLoader
 sys.stderr.close()
 sys.stderr = stderr
 
-from utils import Logger, RMSE, MAE, MAPE, plot_grad_flow
+from utils import Logger, batch2device, plot_grad_flow, evalMetrics, METRICS_FUNCTIONS_MAP
 from RSODPDataSet import RSODPDataSet
 from model import Gallat, GallatExt, GallatExtFull
 from HistoricalAverage import avgRec
@@ -24,32 +22,31 @@ from HistoricalAverage import avgRec
 import Config
 
 
-def batch2device(record: dict, record_GD: dict, query: torch.Tensor, target_G: torch.Tensor, target_D: torch.Tensor, device):
-    """ Transfer all sample data into the device (cpu/gpu) """
-    # Transfer record
-    for temp_feat in Config.TEMP_FEAT_NAMES:
-        record[temp_feat] = [(fg.to(device), bg.to(device), gg.to(device)) for (fg, bg, gg) in record[temp_feat]]
-        record_GD[temp_feat] = [(curD.to(device), curG.to(device)) for (curD, curG) in record_GD[temp_feat]]
+def batch2res(batch, device, *args):
+    scheme, net, tune, ref_ext = args[-1]
+    record, recordGD, query, target_G, target_D = batch['record'], batch['record_GD'], batch['query'], batch['target_G'], batch['target_D']
+    if device:
+        record, recordGD, query, target_G, target_D = batch2device(record=record, record_GD=recordGD, query=query,
+                                                                   target_G=target_G, target_D=target_D, device=device)
 
-    # Transfer query
-    query = query.to(device)
+    ref_D, ref_G = avgRec(recordGD, scheme=scheme) if tune else (None, None)
+    res_D, res_G = net(record, query, ref_D, ref_G, predict_G=True, ref_extent=ref_ext)
 
-    # Transfer target
-    target_G = target_G.to(device)
-    target_D = target_D.to(device)
-
-    return record, record_GD, query, target_G, target_D
+    return res_D, res_G, target_D, target_G
 
 
 def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Config.MAX_EPOCHS_DEFAULT,
           eval_freq=Config.EVAL_FREQ_DEFAULT, opt=Config.OPTIMIZER_DEFAULT, num_workers=Config.WORKERS_DEFAULT,
           use_gpu=True, data_dir=Config.DATA_DIR_DEFAULT, logr=Logger(activate=False), model=Config.NETWORK_DEFAULT,
           model_save_dir=Config.MODEL_SAVE_DIR_DEFAULT, train_type=Config.TRAIN_TYPE_DEFAULT,
-          metrics_threshold=Config.METRICS_THRESHOLD_DEFAULT, total_H=Config.DATA_TOTAL_H, start_H=Config.DATA_START_H,
+          metrics_threshold=torch.Tensor([0]), total_H=Config.DATA_TOTAL_H, start_H=Config.DATA_START_H,
           hidden_dim=Config.HIDDEN_DIM_DEFAULT, feat_dim=Config.FEAT_DIM_DEFAULT, query_dim=Config.QUERY_DIM_DEFAULT,
-          scale_factor_d=Config.SCALE_FACTOR_DEFAULT_D, scale_factor_g=Config.SCALE_FACTOR_DEFAULT_G,
           retrain_model_path=Config.RETRAIN_MODEL_PATH_DEFAULT, loss_function=Config.LOSS_FUNC_DEFAULT,
           tune=True, ref_ext=Config.REF_EXTENT):
+    # CUDA if possible
+    device = torch.device('cuda:0' if (use_gpu and torch.cuda.is_available()) else 'cpu')
+    logr.log('> device: {}\n'.format(device))
+
     # Load DataSet
     logr.log('> Loading DataSet from {}\n'.format(data_dir))
     dataset = RSODPDataSet(data_dir, his_rec_num=Config.HISTORICAL_RECORDS_NUM_DEFAULT, time_slot_endurance=Config.TIME_SLOT_ENDURANCE_DEFAULT, total_H=total_H, start_at=start_H)
@@ -82,8 +79,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
 
     # Loss Function
     logr.log('> Using {} as the Loss Function.\n'.format(loss_function))
-    criterion_D = nn.SmoothL1Loss()
-    criterion_G = nn.SmoothL1Loss()
+    criterion_D = nn.MSELoss()
+    criterion_G = nn.MSELoss()
     if loss_function == 'SmoothL1Loss':
         criterion_D = nn.SmoothL1Loss()
         criterion_G = nn.SmoothL1Loss()
@@ -91,18 +88,9 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
         criterion_D = nn.MSELoss()
         criterion_G = nn.MSELoss()
 
-    # CUDA if possible
-    device = torch.device('cuda:0' if (use_gpu and torch.cuda.is_available()) else 'cpu')
-    logr.log('> device: {}\n'.format(device))
-
     if device:
         net.to(device)
         logr.log('> Model sent to {}\n'.format(device))
-
-    # Scale Factor
-    if device:
-        scale_factor_d = scale_factor_d.to(device)
-        scale_factor_g = scale_factor_g.to(device)
 
     # Referenced Extent
     if device:
@@ -120,7 +108,6 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     # Summarize Info
     logr.log('\nlearning_rate = {}, epochs = {}, num_workers = {}\n'.format(lr, ep, num_workers))
     logr.log('eval_freq = {}, batch_size = {}, optimizer = {}\n'.format(eval_freq, bs, opt))
-    logr.log('scaling Factor for: d = %.2f, g = %.2f\n' % (scale_factor_d.item(), scale_factor_g.item()))
     logr.log('tune = %s%s\n' % (str(tune), ", ref_extent = %.2f" % ref_ext.item() if tune else ""))
 
     # Start Training
@@ -133,9 +120,9 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
         # train one round
         net.train()
         train_loss = 0
-        train_rmse = 0
-        train_mape = 0
-        train_mae = 0
+        train_metrics_res = {}
+        for metrics in METRICS_FUNCTIONS_MAP:
+            train_metrics_res[metrics] = {'val': torch.zeros(1), 'num': torch.zeros(1)}
         time_start_train = time.time()
         for i, batch in enumerate(trainloader):
             if device.type == 'cuda':
@@ -149,15 +136,17 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
 
             optimizer.zero_grad()
 
-            # with profiler.profile(profile_memory=True, use_cuda=True) as prof:
-            #     with profiler.record_function('model_inference'):
-            #         res_D, res_G = net(record, query, predict_G=predict_G)   # if pretrain, res_G = None
-            #         loss = criterion_D(res_D, target_D) if pretrain else (criterion_D(res_D, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G) * Config.G_PERCENTAGE_DEFAULT)
-            # logr.log(prof.key_averages().table(sort_by="cuda_time_total"))
+            if Config.PROFILE:
+                with profiler.profile(profile_memory=True, use_cuda=True) as prof:
+                    with profiler.record_function('model_inference'):
+                        res_D, res_G = net(record, query, predict_G=predict_G)   # if pretrain, res_G = None
+                        loss = (criterion_D(res_D, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G) * Config.G_PERCENTAGE_DEFAULT) if predict_G else criterion_D(res_D, target_D)
+                logr.log(prof.key_averages().table(sort_by="cuda_time_total"))
+                exit(100)
 
             ref_D, ref_G = avgRec(record_GD) if tune else (None, None)
             res_D, res_G = net(record, query, ref_D, ref_G, predict_G=predict_G, ref_extent=ref_ext)  # if pretrain, res_G = None
-            loss = (criterion_D(res_D * scale_factor_d, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G * scale_factor_g, target_G) * Config.G_PERCENTAGE_DEFAULT) if predict_G else criterion_D(res_D * scale_factor_d, target_D)
+            loss = (criterion_D(res_D, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G) * Config.G_PERCENTAGE_DEFAULT) if predict_G else criterion_D(res_D, target_D)
 
             loss.backward()
 
@@ -169,52 +158,59 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
             # Analysis
             with torch.no_grad():
                 train_loss += loss.item()
-                train_rmse += (RMSE(res_D * scale_factor_d, target_D, metrics_threshold) * Config.D_PERCENTAGE_DEFAULT + RMSE(res_G * scale_factor_g, target_G, metrics_threshold) * Config.G_PERCENTAGE_DEFAULT).item() if predict_G else RMSE(res_D * scale_factor_d, target_D, metrics_threshold).item()
-                train_mape += (MAPE(res_D * scale_factor_d, target_D, metrics_threshold) * Config.D_PERCENTAGE_DEFAULT + MAPE(res_G * scale_factor_g, target_G, metrics_threshold) * Config.G_PERCENTAGE_DEFAULT).item() if predict_G else MAPE(res_D * scale_factor_d, target_D, metrics_threshold).item()
-                train_mae += (MAE(res_D * scale_factor_d, target_D, metrics_threshold) * Config.D_PERCENTAGE_DEFAULT + MAE(res_G * scale_factor_g, target_G, metrics_threshold) * Config.G_PERCENTAGE_DEFAULT).item() if predict_G else MAE(res_D * scale_factor_d, target_D, metrics_threshold).item()
+                for metrics in train_metrics_res:
+                    curFunc = METRICS_FUNCTIONS_MAP[metrics]
+                    res, resN = curFunc(res_G if predict_G else res_D, target_G if predict_G else target_D, metrics_threshold)
+                    train_metrics_res[metrics]['val'] += res.item()
+                    train_metrics_res[metrics]['num'] += resN
 
-            # if i == 0:    # DEBUG
-            #     break
+            if Config.TRAIN_JUST_ONE_ROUND:     # DEBUG
+                if i == 0:
+                    break
 
         # Analysis after one training round in the epoch
         train_loss /= len(trainloader)
-        train_rmse /= len(trainloader)
-        train_mape /= len(trainloader)
-        train_mae /= len(trainloader)
+        for metrics in train_metrics_res:
+            train_metrics_res[metrics]['val'] /= train_metrics_res[metrics]['num']
+            if metrics == 'RMSE':
+                train_metrics_res[metrics]['val'] = torch.sqrt(train_metrics_res[metrics]['val'])
         time_end_train = time.time()
         total_train_time = (time_end_train - time_start_train)
         train_time_per_sample = total_train_time / len(dataset.train_set)
-        logr.log('Training Round %d: loss = %.6f, time_cost = %.4f sec (%.4f sec per sample), RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' % (epoch_i, train_loss, total_train_time, train_time_per_sample, metrics_threshold_val, train_rmse, metrics_threshold_val, train_mape, metrics_threshold_val, train_mae))
+        logr.log('Training Round %d: loss = %.6f, time_cost = %.4f sec (%.4f sec per sample), RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' % (epoch_i, train_loss, total_train_time, train_time_per_sample, metrics_threshold_val, float(train_metrics_res['RMSE']['val']), metrics_threshold_val, float(train_metrics_res['MAPE']['val']), metrics_threshold_val, float(train_metrics_res['MAE']['val'])))
 
         # eval_freq: Evaluate on validation set
         if (epoch_i + 1) % eval_freq == 0:
             net.eval()
             val_loss_total = 0
-            val_rmse = 0
-            val_mape = 0
-            val_mae = 0
-            if device.type == 'cuda':
-                torch.cuda.empty_cache()
+            valid_metrics_res = {}
+            for metrics in METRICS_FUNCTIONS_MAP:
+                valid_metrics_res[metrics] = {'val': torch.zeros(1), 'num': torch.zeros(1)}
             with torch.no_grad():
                 for j, val_batch in enumerate(validloader):
+                    if device.type == 'cuda':
+                        torch.cuda.empty_cache()
                     val_record, val_record_GD, val_query, val_target_G, val_target_D = val_batch['record'], val_batch['record_GD'], val_batch['query'], val_batch['target_G'], val_batch['target_D']
                     if device:
                         val_record, val_record_GD, val_query, val_target_G, val_target_D = batch2device(val_record, val_record_GD, val_query, val_target_G, val_target_D, device)
 
                     val_ref_D, val_ref_G = avgRec(val_record_GD) if tune else (None, None)
                     val_res_D, val_res_G = net(val_record, val_query, val_ref_D, val_ref_G, predict_G=predict_G, ref_extent=ref_ext)
-                    val_loss = criterion_D(val_res_D * scale_factor_d, val_target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(val_res_G * scale_factor_g, val_target_G) * Config.G_PERCENTAGE_DEFAULT if predict_G else criterion_D(val_res_D * scale_factor_d, val_target_D)
+                    val_loss = criterion_D(val_res_D, val_target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(val_res_G, val_target_G) * Config.G_PERCENTAGE_DEFAULT if predict_G else criterion_D(val_res_D, val_target_D)
 
                     val_loss_total += val_loss.item()
-                    val_rmse += (RMSE(val_res_D * scale_factor_d, val_target_D, metrics_threshold) * Config.D_PERCENTAGE_DEFAULT + RMSE(val_res_G * scale_factor_g, val_target_G, metrics_threshold) * Config.G_PERCENTAGE_DEFAULT).item() if predict_G else RMSE(val_res_D * scale_factor_d, val_target_D, metrics_threshold).item()
-                    val_mape += (MAPE(val_res_D * scale_factor_d, val_target_D, metrics_threshold) * Config.D_PERCENTAGE_DEFAULT + MAPE(val_res_G * scale_factor_g, val_target_G, metrics_threshold) * Config.G_PERCENTAGE_DEFAULT).item() if predict_G else MAPE(val_res_D * scale_factor_d, val_target_D, metrics_threshold).item()
-                    val_mae += (MAE(val_res_D * scale_factor_d, val_target_D, metrics_threshold) * Config.D_PERCENTAGE_DEFAULT + MAE(val_res_G * scale_factor_g, val_target_G, metrics_threshold) * Config.G_PERCENTAGE_DEFAULT).item() if predict_G else MAE(val_res_D * scale_factor_d, val_target_D, metrics_threshold).item()
+                    for metrics in valid_metrics_res:
+                        curFunc = METRICS_FUNCTIONS_MAP[metrics]
+                        res, resN = curFunc(val_res_G if predict_G else val_res_D, val_target_G if predict_G else val_target_D, metrics_threshold)
+                        valid_metrics_res[metrics]['val'] += res.item()
+                        valid_metrics_res[metrics]['num'] += resN
 
                 val_loss_total /= len(validloader)
-                val_rmse /= len(validloader)
-                val_mape /= len(validloader)
-                val_mae /= len(validloader)
-                logr.log('!!! Validation : loss = %.6f, RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' % (val_loss_total, metrics_threshold_val, val_rmse, metrics_threshold_val, val_mape, metrics_threshold_val, val_mae))
+                for metrics in valid_metrics_res:
+                    valid_metrics_res[metrics]['val'] /= valid_metrics_res[metrics]['num']
+                    if metrics == 'RMSE':
+                        valid_metrics_res[metrics]['val'] = torch.sqrt(valid_metrics_res[metrics]['val'])
+                logr.log('!!! Validation : loss = %.6f, RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' % (val_loss_total, metrics_threshold_val, valid_metrics_res['RMSE']['val'], metrics_threshold_val, valid_metrics_res['MAPE']['val'], metrics_threshold_val, valid_metrics_res['MAE']['val']))
 
                 if val_loss_total < min_eval_loss:
                     min_eval_loss = val_loss_total
@@ -232,7 +228,6 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
 def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT, use_gpu=True,
              data_dir=Config.DATA_DIR_DEFAULT, logr=Logger(activate=False),
              total_H=Config.DATA_TOTAL_H, start_H=Config.DATA_START_H,
-             scale_factor_d=Config.SCALE_FACTOR_DEFAULT_D, scale_factor_g=Config.SCALE_FACTOR_DEFAULT_G,
              tune=True, ref_ext=Config.REF_EXTENT):
     """
         Evaluate using saved best model (Note that this is a Test API)
@@ -240,14 +235,14 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
         2. Re-evaluate on the test set
         The evaluation metrics include RMSE, MAPE, MAE
     """
+    # CUDA if needed
+    device = torch.device('cuda:0' if (use_gpu and torch.cuda.is_available()) else 'cpu')
+    logr.log('> device: {}\n'.format(device))
+
     # Load Model
     logr.log('> Loading {}\n'.format(model_name))
     net = torch.load(model_name)
     logr.log('> Model Structure:\n{}\n'.format(net))
-
-    # CUDA if needed
-    device = torch.device('cuda:0' if (use_gpu and torch.cuda.is_available()) else 'cpu')
-    logr.log('> device: {}\n'.format(device))
 
     if device:
         net.to(device)
@@ -261,110 +256,21 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
     testloader = GraphDataLoader(dataset.test_set, batch_size=bs, shuffle=False, num_workers=num_workers)
     logr.log('> Validation batches: {}, Test batches: {}\n'.format(len(validloader), len(testloader)))
 
-    # Scale Factor
-    if device:
-        scale_factor_d = scale_factor_d.to(device)
-        scale_factor_g = scale_factor_g.to(device)
-
     # Referenced Extent
     if device:
         ref_ext = torch.Tensor([ref_ext]).to(device)
 
     # Log Info
-    logr.log('scaling Factor for: d = %.2f, g = %.2f\n' % (scale_factor_d.item(), scale_factor_g.item()))
     logr.log('tune = %s%s\n' % (str(tune), ", ref_extent = %.2f" % ref_ext.item() if tune else ""))
 
-    # 1.
     net.eval()
-    # Metrics with thresholds
-    num_metrics_threshold = len(Config.EVAL_METRICS_THRESHOLD_SET)
-    metrics_res = {'Demand': {}, 'OD': {}}
-    for metrics_for_what in metrics_res:
-        metrics_res[metrics_for_what] = {
-            'RMSE': torch.zeros(num_metrics_threshold),
-            'MAPE': torch.zeros(num_metrics_threshold),
-            'MAE': torch.zeros(num_metrics_threshold),
-        }
-    if device:
-        metrics_thresholds = [torch.Tensor([threshold]).to(device) for threshold in Config.EVAL_METRICS_THRESHOLD_SET]
-    # Clean GPU memory
-    if device.type == 'cuda':
-        torch.cuda.empty_cache()
-    with torch.no_grad():
-        for j, val_batch in enumerate(validloader):
-            val_record, val_record_GD, val_query, val_target_G, val_target_D = val_batch['record'], val_batch['record_GD'], val_batch['query'], val_batch['target_G'], val_batch['target_D']
-            if device:
-                val_record, val_record_GD, val_query, val_target_G, val_target_D = batch2device(val_record, val_record_GD, val_query, val_target_G, val_target_D, device)
+    # 1.
+    evalMetrics(validloader, 'Validation', batch2res, device, logr,
+                Config.HA_FEAT_DEFAULT, net, tune, ref_ext)
 
-            val_ref_D, val_ref_G = avgRec(val_record_GD) if tune else (None, None)
-            val_res_D, val_res_G = net(val_record, val_query, val_ref_D, val_ref_G, predict_G=True, ref_extent=ref_ext)
-
-            for mi in range(num_metrics_threshold):     # for the (mi)th threshold
-                metrics_res['Demand']['RMSE'][mi] += RMSE(val_res_D * scale_factor_d, val_target_D, metrics_thresholds[mi]).item()
-                metrics_res['Demand']['MAPE'][mi] += MAPE(val_res_D * scale_factor_d, val_target_D, metrics_thresholds[mi]).item()
-                metrics_res['Demand']['MAE'][mi] += MAE(val_res_D * scale_factor_d, val_target_D, metrics_thresholds[mi]).item()
-                metrics_res['OD']['RMSE'][mi] += RMSE(val_res_G * scale_factor_g, val_target_G, metrics_thresholds[mi]).item()
-                metrics_res['OD']['MAPE'][mi] += MAPE(val_res_G * scale_factor_g, val_target_G, metrics_thresholds[mi]).item()
-                metrics_res['OD']['MAE'][mi] += MAE(val_res_G * scale_factor_g, val_target_G, metrics_thresholds[mi]).item()
-
-        for metrics_for_what in metrics_res:
-            for metrics in metrics_res[metrics_for_what]:
-                metrics_res[metrics_for_what][metrics] /= len(validloader)
-
-        logr.log('> Metrics Evaluations for Validation Set:\n')
-        for metrics_for_what in metrics_res:
-            logr.log('%s:\n' % metrics_for_what)
-            for metrics in metrics_res[metrics_for_what]:
-                for mi in range(num_metrics_threshold):
-                    cur_threshold = Config.EVAL_METRICS_THRESHOLD_SET[mi]
-                    logr.log('%s-%d = %.4f%s' % (metrics,
-                                                 cur_threshold,
-                                                 metrics_res[metrics_for_what][metrics][mi],
-                                                 (', ' if mi != num_metrics_threshold - 1 else '\n')))
-
-        # 2.
-        net.eval()
-        # Metrics with thresholds
-        for metrics_for_what in metrics_res:
-            metrics_res[metrics_for_what] = {
-                'RMSE': torch.zeros(num_metrics_threshold),
-                'MAPE': torch.zeros(num_metrics_threshold),
-                'MAE': torch.zeros(num_metrics_threshold),
-            }
-        # Clean GPU memory
-        if device.type == 'cuda':
-            torch.cuda.empty_cache()
-        with torch.no_grad():
-            for k, test_batch in enumerate(testloader):
-                test_record, test_record_GD, test_query, test_target_G, test_target_D = test_batch['record'], test_batch['record_GD'], test_batch['query'], test_batch['target_G'], test_batch['target_D']
-                if device:
-                    test_record, test_record_GD, test_query, test_target_G, test_target_D = batch2device(test_record, test_record_GD, test_query, test_target_G, test_target_D, device)
-
-                test_ref_D, test_ref_G = avgRec(test_record_GD) if tune else (None, None)
-                test_res_D, test_res_G = net(test_record, test_query, test_ref_D, test_ref_G, predict_G=True, ref_extent=ref_ext)
-
-                for mi in range(num_metrics_threshold):  # for the (mi)th threshold
-                    metrics_res['Demand']['RMSE'][mi] += RMSE(test_res_D * scale_factor_d, test_target_D, metrics_thresholds[mi]).item()
-                    metrics_res['Demand']['MAPE'][mi] += MAPE(test_res_D * scale_factor_d, test_target_D, metrics_thresholds[mi]).item()
-                    metrics_res['Demand']['MAE'][mi] += MAE(test_res_D * scale_factor_d, test_target_D, metrics_thresholds[mi]).item()
-                    metrics_res['OD']['RMSE'][mi] += RMSE(test_res_G * scale_factor_g, test_target_G, metrics_thresholds[mi]).item()
-                    metrics_res['OD']['MAPE'][mi] += MAPE(test_res_G * scale_factor_g, test_target_G, metrics_thresholds[mi]).item()
-                    metrics_res['OD']['MAE'][mi] += MAE(test_res_G * scale_factor_g, test_target_G, metrics_thresholds[mi]).item()
-
-            for metrics_for_what in metrics_res:
-                for metrics in metrics_res[metrics_for_what]:
-                    metrics_res[metrics_for_what][metrics] /= len(testloader)
-
-            logr.log('> Metrics Evaluations for Test Set:\n')
-            for metrics_for_what in metrics_res:
-                logr.log('%s:\n' % metrics_for_what)
-                for metrics in metrics_res[metrics_for_what]:
-                    for mi in range(num_metrics_threshold):
-                        cur_threshold = Config.EVAL_METRICS_THRESHOLD_SET[mi]
-                        logr.log('%s-%d = %.4f%s' % (metrics,
-                                                     cur_threshold,
-                                                     metrics_res[metrics_for_what][metrics][mi],
-                                                     (', ' if mi != num_metrics_threshold - 1 else '\n')))
+    # 2.
+    evalMetrics(testloader, 'Test', batch2res, device, logr,
+                Config.HA_FEAT_DEFAULT, net, tune, ref_ext)
 
     # End Evaluation
     logr.log('> Evaluation finished.\n')
@@ -394,12 +300,10 @@ if __name__ == '__main__':
     parser.add_argument('-e', '--eval', type=str, default=Config.EVAL_DEFAULT, help='Specify the location of saved network to be loaded for evaluation, default = {}'.format(Config.EVAL_DEFAULT))
     parser.add_argument('-md', '--model_save_dir', type=str, default=Config.MODEL_SAVE_DIR_DEFAULT, help='Specify the location of network to be saved, default = {}'.format(Config.MODEL_SAVE_DIR_DEFAULT))
     parser.add_argument('-tt', '--train_type', type=str, default=Config.TRAIN_TYPE_DEFAULT, help='Specify train mode [normal, pretrain, retrain], default = {}'.format(Config.TRAIN_TYPE_DEFAULT))
-    parser.add_argument('-mt', '--metrics_threshold', type=int, default=Config.METRICS_THRESHOLD_DEFAULT, help='Specify the metrics threshold, default = {}'.format(Config.METRICS_THRESHOLD_DEFAULT))
+    parser.add_argument('-mt', '--metrics_threshold', type=int, default=torch.Tensor([0]), help='Specify the metrics threshold, default = {}'.format(torch.Tensor([0])))
     parser.add_argument('-hd', '--hidden_dim', type=int, default=Config.HIDDEN_DIM_DEFAULT, help='Specify the hidden dimension, default = {}'.format(Config.HIDDEN_DIM_DEFAULT))
     parser.add_argument('-fd', '--feature_dim', type=int, default=Config.FEAT_DIM_DEFAULT, help='Specify the feature dimension, default = {}'.format(Config.FEAT_DIM_DEFAULT))
     parser.add_argument('-qd', '--query_dim', type=int, default=Config.QUERY_DIM_DEFAULT, help='Specify the query dimension, default = {}'.format(Config.QUERY_DIM_DEFAULT))
-    parser.add_argument('-sfd', '--scale_factor_d', type=float, default=Config.SCALE_FACTOR_DEFAULT_D, help='scale factor for model output d, default = {}'.format(Config.SCALE_FACTOR_DEFAULT_D))
-    parser.add_argument('-sfg', '--scale_factor_g', type=float, default=Config.SCALE_FACTOR_DEFAULT_G, help='scale factor for model output g, default = {}'.format(Config.SCALE_FACTOR_DEFAULT_G))
     parser.add_argument('-r', '--retrain_model_path', type=str, default=Config.RETRAIN_MODEL_PATH_DEFAULT, help='Specify the location of the model to be retrained if train type is retrain, default = {}'.format(Config.RETRAIN_MODEL_PATH_DEFAULT))
     parser.add_argument('-lf', '--loss_function', type=str, default=Config.LOSS_FUNC_DEFAULT, help='Specify which loss function to use, default = {}'.format(Config.LOSS_FUNC_DEFAULT))
     parser.add_argument('-t', '--tune', type=int, default=Config.TUNE_DEFAULT, help='Specify whether to tune in the transferring layer of the model, default = {}'.format(Config.TUNE_DEFAULT))
@@ -419,7 +323,6 @@ if __name__ == '__main__':
               metrics_threshold=torch.Tensor([FLAGS.metrics_threshold]),
               total_H=FLAGS.hours, start_H=FLAGS.start_hour, hidden_dim=FLAGS.hidden_dim,
               feat_dim=FLAGS.feature_dim, query_dim=FLAGS.query_dim,
-              scale_factor_d=torch.Tensor([FLAGS.scale_factor_d]), scale_factor_g=torch.Tensor([FLAGS.scale_factor_g]),
               retrain_model_path=FLAGS.retrain_model_path, loss_function=FLAGS.loss_function,
               tune=(FLAGS.tune == 1), ref_ext=FLAGS.ref_extent)
         logger.close()
@@ -433,8 +336,6 @@ if __name__ == '__main__':
         # Normal
         evaluate(eval_file, bs=FLAGS.batch_size, num_workers=FLAGS.cores, use_gpu=(FLAGS.gpu == 1),
                  data_dir=FLAGS.data_dir, logr=logger, total_H=FLAGS.hours, start_H=FLAGS.start_hour,
-                 scale_factor_d=torch.Tensor([FLAGS.scale_factor_d]),
-                 scale_factor_g=torch.Tensor([FLAGS.scale_factor_g]),
                  tune=(FLAGS.tune == 1), ref_ext=FLAGS.ref_extent)
         logger.close()
     else:

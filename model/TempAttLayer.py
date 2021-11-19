@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 from .ScaledDotProductAttention import ScaledDotProductAttention
 
-TEMP_FEAT_NAMES = ['St', 'Sp', 'Stpm', 'Stpp']
+from Config import TEMP_FEAT_NAMES
 
 
 class TempAttLayer(nn.Module):

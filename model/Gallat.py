@@ -8,7 +8,7 @@ from .SpatAttLayer import SpatAttLayer
 from .TempAttLayer import TempAttLayer
 from .TranAttLayer import TranAttLayer
 
-TEMP_FEAT_NAMES = ['St', 'Sp', 'Stpm', 'Stpp']
+from Config import TEMP_FEAT_NAMES
 
 
 class Gallat(nn.Module):

@@ -149,33 +149,9 @@ def testSamplingSpeed(dataset: DGLDataset, batch_size: int, shuffle: bool, tag: 
     sys.stdout.write('\n')
 
 
-def meanWhat(dataset: RSODPDataSet, batch_size=20, num_workers=4):
-    """ Find the maximum values of D and G over the dataset """
-    trainloader = GraphDataLoader(dataset.train_set, batch_size=batch_size, shuffle=True, num_workers=num_workers)
-    validloader = GraphDataLoader(dataset.valid_set, batch_size=batch_size, shuffle=False, num_workers=num_workers)
-    testloader = GraphDataLoader(dataset.test_set, batch_size=batch_size, shuffle=False, num_workers=num_workers)
-    mean_d = 0
-    mean_g = 0
-    for dataloader in [trainloader, validloader, testloader]:
-        cur_mean_d = 0
-        cur_mean_g = 0
-        for i, batch in enumerate(dataloader):
-            target_G, target_D = batch['target_G'], batch['target_D']
-            cur_mean_d += torch.mean(target_D)
-            cur_mean_g += torch.mean(target_G)
-        cur_mean_d /= len(dataloader)
-        cur_mean_g /= len(dataloader)
-        mean_d += cur_mean_d
-        mean_g += cur_mean_g
-    mean_d /= 3
-    mean_g /= 3
-    print('Mean d = {}, mean g = {}'.format(mean_d, mean_g))
-
-
 if __name__ == '__main__':
     path = 'data/ny2016_0101to0331/'
     ds = RSODPDataSet(data_dir=path, total_H=1064, start_at=729)
-    # testSamplingSpeed(ds.train_set, batch_size=20, shuffle=True, tag='Training', num_workers=4)
-    # testSamplingSpeed(ds.valid_set, batch_size=20, shuffle=False, tag='Validation', num_workers=4)
-    # testSamplingSpeed(ds.test_set, batch_size=20, shuffle=False, tag='Test', num_workers=4)
-    meanWhat(dataset=ds)
+    testSamplingSpeed(ds.train_set, batch_size=20, shuffle=True, tag='Training', num_workers=4)
+    testSamplingSpeed(ds.valid_set, batch_size=20, shuffle=False, tag='Validation', num_workers=4)
+    testSamplingSpeed(ds.test_set, batch_size=20, shuffle=False, tag='Test', num_workers=4)

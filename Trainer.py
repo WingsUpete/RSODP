@@ -210,7 +210,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                     valid_metrics_res[metrics]['val'] /= valid_metrics_res[metrics]['num']
                     if metrics == 'RMSE':
                         valid_metrics_res[metrics]['val'] = torch.sqrt(valid_metrics_res[metrics]['val'])
-                logr.log('!!! Validation : loss = %.6f, RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' % (val_loss_total, metrics_threshold_val, valid_metrics_res['RMSE']['val'], metrics_threshold_val, valid_metrics_res['MAPE']['val'], metrics_threshold_val, valid_metrics_res['MAE']['val']))
+                logr.log('!!! Validation : loss = %.6f, RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' % (val_loss_total, metrics_threshold_val, float(valid_metrics_res['RMSE']['val']), metrics_threshold_val, float(valid_metrics_res['MAPE']['val']), metrics_threshold_val, float(valid_metrics_res['MAE']['val'])))
 
                 if val_loss_total < min_eval_loss:
                     min_eval_loss = val_loss_total

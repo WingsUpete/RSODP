@@ -6,7 +6,6 @@ import time
 import torch
 import torch.nn as nn
 import torch.autograd.profiler as profiler
-# torch.autograd.set_detect_anomaly(True)
 
 stderr = sys.stderr
 sys.stderr = open(os.devnull, 'w')
@@ -14,12 +13,14 @@ from dgl.dataloading import GraphDataLoader
 sys.stderr.close()
 sys.stderr = stderr
 
-from utils import Logger, batch2device, plot_grad_flow, evalMetrics, METRICS_FUNCTIONS_MAP
+from utils import Logger, batch2device, plot_grad_flow, evalMetrics, METRICS_FUNCTIONS_MAP, genMetricsResStorage, aggrMetricsRes, wrapMetricsRes
 from RSODPDataSet import RSODPDataSet
 from model import Gallat, GallatExt, GallatExtFull
 from HistoricalAverage import avgRec
 
 import Config
+if Config.CHECK_GRADS:
+    torch.autograd.set_detect_anomaly(True)
 
 
 def batch2res(batch, device, *args):
@@ -57,6 +58,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
 
     # Initialize the Model
     predict_G = (train_type != 'pretrain')
+    task = 'OD' if predict_G else 'Demand'
     net = Gallat(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim)
     if train_type == 'retrain':
         logr.log('> Loading the Pretrained Model: {}, Train type = {}\n'.format(retrain_model_path, train_type))
@@ -120,9 +122,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
         # train one round
         net.train()
         train_loss = 0
-        train_metrics_res = {}
-        for metrics in METRICS_FUNCTIONS_MAP:
-            train_metrics_res[metrics] = {'val': torch.zeros(1), 'num': torch.zeros(1)}
+        train_metrics_res = genMetricsResStorage(num_metrics_threshold=1, tasks=[task])
         time_start_train = time.time()
         for i, batch in enumerate(trainloader):
             if device.type == 'cuda':
@@ -158,11 +158,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
             # Analysis
             with torch.no_grad():
                 train_loss += loss.item()
-                for metrics in train_metrics_res:
-                    curFunc = METRICS_FUNCTIONS_MAP[metrics]
-                    res, resN = curFunc(res_G if predict_G else res_D, target_G if predict_G else target_D, metrics_threshold)
-                    train_metrics_res[metrics]['val'] += res.item()
-                    train_metrics_res[metrics]['num'] += resN
+                train_metrics_res = aggrMetricsRes(train_metrics_res, [metrics_threshold], 1,
+                                                   res_D, target_D, res_G, target_G)
 
             if Config.TRAIN_JUST_ONE_ROUND:     # DEBUG
                 if i == 0:
@@ -170,22 +167,18 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
 
         # Analysis after one training round in the epoch
         train_loss /= len(trainloader)
-        for metrics in train_metrics_res:
-            train_metrics_res[metrics]['val'] /= train_metrics_res[metrics]['num']
-            if metrics == 'RMSE':
-                train_metrics_res[metrics]['val'] = torch.sqrt(train_metrics_res[metrics]['val'])
+        train_metrics_res = wrapMetricsRes(train_metrics_res)
         time_end_train = time.time()
         total_train_time = (time_end_train - time_start_train)
         train_time_per_sample = total_train_time / len(dataset.train_set)
-        logr.log('Training Round %d: loss = %.6f, time_cost = %.4f sec (%.4f sec per sample), RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' % (epoch_i, train_loss, total_train_time, train_time_per_sample, metrics_threshold_val, float(train_metrics_res['RMSE']['val']), metrics_threshold_val, float(train_metrics_res['MAPE']['val']), metrics_threshold_val, float(train_metrics_res['MAE']['val'])))
+        logr.log('Training Round %d: loss = %.6f, time_cost = %.4f sec (%.4f sec per sample), RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' %
+                 (epoch_i, train_loss, total_train_time, train_time_per_sample, metrics_threshold_val, train_metrics_res[task]['RMSE']['val'], metrics_threshold_val, train_metrics_res[task]['MAPE']['val'], metrics_threshold_val, train_metrics_res[task]['MAE']['val']))
 
         # eval_freq: Evaluate on validation set
         if (epoch_i + 1) % eval_freq == 0:
             net.eval()
             val_loss_total = 0
-            valid_metrics_res = {}
-            for metrics in METRICS_FUNCTIONS_MAP:
-                valid_metrics_res[metrics] = {'val': torch.zeros(1), 'num': torch.zeros(1)}
+            valid_metrics_res = genMetricsResStorage(num_metrics_threshold=1, tasks=[task])
             with torch.no_grad():
                 for j, val_batch in enumerate(validloader):
                     if device.type == 'cuda':
@@ -199,18 +192,13 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                     val_loss = criterion_D(val_res_D, val_target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(val_res_G, val_target_G) * Config.G_PERCENTAGE_DEFAULT if predict_G else criterion_D(val_res_D, val_target_D)
 
                     val_loss_total += val_loss.item()
-                    for metrics in valid_metrics_res:
-                        curFunc = METRICS_FUNCTIONS_MAP[metrics]
-                        res, resN = curFunc(val_res_G if predict_G else val_res_D, val_target_G if predict_G else val_target_D, metrics_threshold)
-                        valid_metrics_res[metrics]['val'] += res.item()
-                        valid_metrics_res[metrics]['num'] += resN
+                    valid_metrics_res = aggrMetricsRes(valid_metrics_res, [metrics_threshold], 1,
+                                                       val_res_D, val_target_D, val_res_G, val_target_G)
 
                 val_loss_total /= len(validloader)
-                for metrics in valid_metrics_res:
-                    valid_metrics_res[metrics]['val'] /= valid_metrics_res[metrics]['num']
-                    if metrics == 'RMSE':
-                        valid_metrics_res[metrics]['val'] = torch.sqrt(valid_metrics_res[metrics]['val'])
-                logr.log('!!! Validation : loss = %.6f, RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' % (val_loss_total, metrics_threshold_val, float(valid_metrics_res['RMSE']['val']), metrics_threshold_val, float(valid_metrics_res['MAPE']['val']), metrics_threshold_val, float(valid_metrics_res['MAE']['val'])))
+                valid_metrics_res = wrapMetricsRes(valid_metrics_res)
+                logr.log('!!! Validation : loss = %.6f, RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' %
+                         (val_loss_total, metrics_threshold_val, valid_metrics_res[task]['RMSE']['val'], metrics_threshold_val, valid_metrics_res[task]['MAPE']['val'], metrics_threshold_val, valid_metrics_res[task]['MAE']['val']))
 
                 if val_loss_total < min_eval_loss:
                     min_eval_loss = val_loss_total

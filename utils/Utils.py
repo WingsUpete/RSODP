@@ -191,14 +191,43 @@ def plot_grad_flow(named_parameters):
     plt.ioff()
 
 
+def genMetricsResStorage(num_metrics_threshold=len(Config.EVAL_METRICS_THRESHOLD_SET), tasks=Config.METRICS_FOR_WHAT):
+    metrics_res = {}
+    for metrics_for_what in tasks:
+        metrics_res[metrics_for_what] = {}
+        for metrics in METRICS_FUNCTIONS_MAP:
+            metrics_res[metrics_for_what][metrics] = {'val': torch.zeros(num_metrics_threshold),
+                                                      'num': torch.zeros(num_metrics_threshold)}
+    return metrics_res
+
+
+def aggrMetricsRes(metrics_res, metrics_thresholds, num_metrics_threshold, res_D, target_D, res_G, target_G):
+    for mi in range(num_metrics_threshold):  # for the (mi)th threshold
+        for metrics_for_what in metrics_res:
+            curRes, curTar = (res_D, target_D) if metrics_for_what == 'Demand' else (res_G, target_G)
+            for metrics in metrics_res[metrics_for_what]:
+                curFunc = METRICS_FUNCTIONS_MAP[metrics]
+                res, resN = curFunc(curRes, curTar, metrics_thresholds[mi])
+                metrics_res[metrics_for_what][metrics]['val'][mi] += res.item()
+                metrics_res[metrics_for_what][metrics]['num'][mi] += resN
+
+    return metrics_res
+
+
+def wrapMetricsRes(metrics_res):
+    for metrics_for_what in metrics_res:
+        for metrics in metrics_res[metrics_for_what]:
+            metrics_res[metrics_for_what][metrics]['val'] /= metrics_res[metrics_for_what][metrics]['num']
+            if metrics == 'RMSE':
+                metrics_res[metrics_for_what][metrics]['val'] = torch.sqrt(metrics_res[metrics_for_what][metrics]['val'])
+
+    return metrics_res
+
+
 def evalMetrics(dataloader, eval_type, getResMethod, device, logr, *args):
     # Metrics with thresholds
     num_metrics_threshold = len(Config.EVAL_METRICS_THRESHOLD_SET)
-    metrics_res = {}
-    for metrics_for_what in Config.METRICS_FOR_WHAT:
-        metrics_res[metrics_for_what] = {}
-        for metrics in METRICS_FUNCTIONS_MAP:
-            metrics_res[metrics_for_what][metrics] = {'val': torch.zeros(num_metrics_threshold), 'num': torch.zeros(num_metrics_threshold)}
+    metrics_res = genMetricsResStorage(num_metrics_threshold=num_metrics_threshold, tasks=Config.METRICS_FOR_WHAT)
     metrics_thresholds = [torch.Tensor([threshold]) for threshold in Config.EVAL_METRICS_THRESHOLD_SET]
     if device:
         metrics_thresholds = [torch.Tensor([threshold]).to(device) for threshold in Config.EVAL_METRICS_THRESHOLD_SET]
@@ -210,25 +239,10 @@ def evalMetrics(dataloader, eval_type, getResMethod, device, logr, *args):
 
             res_D, res_G, target_D, target_G = getResMethod(batch, device, args)
 
-            for mi in range(num_metrics_threshold):     # for the (mi)th threshold
-                for metrics_for_what in metrics_res:
-                    curRes = -1
-                    curTar = -1
-                    if metrics_for_what == 'Demand':
-                        curRes, curTar = res_D, target_D
-                    elif metrics_for_what == 'OD':
-                        curRes, curTar = res_G, target_G
-                    for metrics in metrics_res[metrics_for_what]:
-                        curFunc = METRICS_FUNCTIONS_MAP[metrics]
-                        res, resN = curFunc(curRes, curTar, metrics_thresholds[mi])
-                        metrics_res[metrics_for_what][metrics]['val'][mi] += res.item()
-                        metrics_res[metrics_for_what][metrics]['num'][mi] += resN
+            metrics_res = aggrMetricsRes(metrics_res, metrics_thresholds, num_metrics_threshold,
+                                         res_D, target_D, res_G, target_G)
 
-        for metrics_for_what in metrics_res:
-            for metrics in metrics_res[metrics_for_what]:
-                metrics_res[metrics_for_what][metrics]['val'] /= metrics_res[metrics_for_what][metrics]['num']
-                if metrics == 'RMSE':
-                    metrics_res[metrics_for_what][metrics]['val'] = torch.sqrt(metrics_res[metrics_for_what][metrics]['val'])
+        metrics_res = wrapMetricsRes(metrics_res)
 
         logr.log('> Metrics Evaluations for %s Set:\n' % eval_type)
         for metrics_for_what in metrics_res:

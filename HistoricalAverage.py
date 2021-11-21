@@ -30,6 +30,7 @@ def avgRec(records: dict, scheme='all'):
     elif scheme == 'periodicity':
         features = ['Sp']
     else:
+        sys.stderr.write('No matching scheme, falling back to "all"\n')
         features = Config.TEMP_FEAT_NAMES
     for temp_feat in features:
         curDList = [records[temp_feat][i][0] for i in range(len(records[temp_feat]))]
@@ -48,7 +49,7 @@ def avgRec(records: dict, scheme='all'):
 
 
 def batch2res(batch, device, args):
-    scheme = args
+    scheme, = args
     recordGD, target_G, target_D = batch['record_GD'], batch['target_G'], batch['target_D']
     if device:
         _, recordGD, _, target_G, target_D = batch2device(record=None, record_GD=recordGD, query=None,

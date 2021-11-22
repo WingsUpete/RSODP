@@ -187,7 +187,8 @@ def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_n
         curData = df_split.iloc[split_i]
         srcRow, srcCol, srcID = inWhichGrid((curData['src lat'], curData['src lng']), grid_info)
         dstRow, dstCol, dstID = inWhichGrid((curData['dst lat'], curData['dst lng']), grid_info)
-        request_matrix[srcID][dstID] += curData['volume']
+        # request_matrix[srcID][dstID] += curData['volume']
+        request_matrix[srcID][dstID] += 1
     GDVQ['G'] = request_matrix.astype(np.float32)
 
     # Get Feature Matrix V
@@ -283,6 +284,7 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_worke
     lowT, upT = minT, minT + pd.Timedelta(hours=1)
     print('Dataframe prepared. Total hours = {}.'.format(totalH))
 
+    # TODO: check min max requests of a time slot
     req_info = {
         'name': path2FileNameWithoutExt(fPath),
         'minT': minT.strftime(DATE_FORMAT),

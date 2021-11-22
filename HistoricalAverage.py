@@ -49,7 +49,7 @@ def avgRec(records: dict, scheme='all'):
 
 
 def batch2res(batch, device, args):
-    scheme, = args
+    scheme = args[-1]
     recordGD, target_G, target_D = batch['record_GD'], batch['target_G'], batch['target_D']
     if device:
         _, recordGD, _, target_G, target_D = batch2device(record=None, record_GD=recordGD, query=None,

@@ -19,6 +19,9 @@ class ScaledDotProductAttention(nn.Module):
         self.Wk = nn.Linear(self.embed_dim, self.embed_dim, bias=False)
         self.Wv = nn.Linear(self.embed_dim, self.embed_dim, bias=False)
 
+        # BatchNorm
+        self.bn = nn.BatchNorm1d(num_features=self.embed_dim)
+
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -43,15 +46,24 @@ class ScaledDotProductAttention(nn.Module):
         output = torch.matmul(norm_scores, proj_V)
         del norm_scores
         del proj_V
-        return F.layer_norm(output + embedding_feat, normalized_shape=[self.embed_dim])
+
+        return output + embedding_feat
 
     def forward(self, query_feat, embed_feat_list):
         embed_outputs = [self.apply_scaled_dot_product_attention(query_feat, embed_feat) for embed_feat in embed_feat_list]
+        output = sum(embed_outputs)
         if self.merge == 'sum':
-            return sum(embed_outputs)
+            output = sum(embed_outputs)
         elif self.merge == 'mean':
-            return sum(embed_outputs) / len(embed_outputs)
+            output = sum(embed_outputs) / len(embed_outputs)
         elif self.merge == 'cat':
-            return torch.cat(embed_outputs, dim=-1)
+            output = torch.cat(embed_outputs, dim=-1)
         else:   # Default: sum, as Gallat
-            return sum(embed_outputs)
+            output = sum(embed_outputs)
+
+        normOut = self.bn(torch.transpose(output, -2, -1))
+        reshapedOut = torch.transpose(normOut, -2, -1)
+        del output
+        del normOut
+
+        return reshapedOut

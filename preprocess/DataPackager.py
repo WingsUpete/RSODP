@@ -120,6 +120,27 @@ def pushGraphEdge(gSrc: list, gDst: list, wList, src, dst, weight):
         return gSrc, gDst
 
 
+def matOD2G(mat, oList: list, dList: list, nGNodes):
+    # pre weights
+    matSum = np.sum(mat, axis=0)
+    for nj in range(nGNodes):
+        if matSum[nj] == 0:
+            continue
+        for ni in range(nGNodes):
+            mat[ni][nj] /= matSum[nj]
+
+    # Transform node data mat to edge data edges
+    edges = []
+    for i in range(len(oList)):
+        edges.append([mat[oList[i]][dList[i]]])
+
+    # Create DGL Graph
+    graph = dgl.graph((oList, dList), num_nodes=nGNodes)
+    graph.edata['pre_w'] = torch.Tensor(edges)
+
+    return graph
+
+
 def getGeoGraph(grid_nodes, L):
     """
     Get RTc data object with the given information
@@ -137,20 +158,8 @@ def getGeoGraph(grid_nodes, L):
                 # if i->j is small enough, j is i's geographical neighbor, j should propagate its features to i, so j->i
                 RSrcList, RDstList = pushGraphEdge(RSrcList, RDstList, None, j, i, None)
                 TcMat[j][i] = 1 / (adjacency_matrix[i][j] + EPSILON)
-    TcSum = np.sum(TcMat, axis=0)
-    for ni in range(len(grid_nodes)):
-        if TcSum[ni] == 0:
-            continue
-        for nj in range(len(grid_nodes)):
-            TcMat[nj][ni] /= TcSum[ni]
 
-    # Transform node data TcMat to edge data TcEdges
-    TcEdges = []
-    for i in range(len(RSrcList)):
-        TcEdges.append([TcMat[RSrcList[i]][RDstList[i]]])
-
-    GeoGraph = dgl.graph((RSrcList, RDstList), num_nodes=len(grid_nodes))
-    GeoGraph.edata['pre_w'] = torch.Tensor(TcEdges)
+    GeoGraph = matOD2G(mat=TcMat, oList=RSrcList, dList=RDstList, nGNodes=len(grid_nodes))
 
     print('Geographical info generated.')
     return GeoGraph
@@ -159,6 +168,32 @@ def getGeoGraph(grid_nodes, L):
 def saveGeoGraph(geoG, fPath):
     dgl.save_graphs(fPath, geoG)
     print('Geographical info saved to {}'.format(fPath))
+
+
+def inWhichGrid(coord, grid_info):
+    """
+    Specify which grid it is in for a given coordinate
+    :param coord: (latitude, longitude)
+    :param grid_info: grid_info dictionary
+    :return: row, column, grid ID
+    """
+    lat, lng = coord
+    row = math.floor((grid_info['maxLat'] - lat) / grid_info['gridLat'])
+    col = math.floor((lng - grid_info['minLng']) / grid_info['gridLng'])
+    gridID = row * grid_info['lngGridNum'] + col
+    return row, col, gridID
+
+
+def ID2Coord(gridID, grid_info):
+    """
+    Given a grid ID, decide the coordinate of that grid
+    :param gridID: Given Grid ID
+    :param grid_info: Grid map information
+    :return: Grid Map Coordinates of that grid in format of (row, col)
+    """
+    row = math.floor(gridID / grid_info['lngGridNum'])
+    col = gridID - row * grid_info['lngGridNum']
+    return row, col
 
 
 def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_nodes, grid_info):
@@ -238,31 +273,9 @@ def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_n
                 PaMat[rmj][rmi] = request_matrix[rmi][rmj] + EPSILON
                 PbSrcList, PbDstList = pushGraphEdge(PbSrcList, PbDstList, None, rmi, rmj, None)
                 PbMat[rmi][rmj] = request_matrix[rmi][rmj] + EPSILON
-    PaSum = np.sum(PaMat, axis=0)
-    for ni in range(len(grid_nodes)):
-        if PaSum[ni] == 0:
-            continue
-        for nj in range(len(grid_nodes)):
-            PaMat[nj][ni] /= PaSum[ni]
-    PbSum = np.sum(PbMat, axis=0)
-    for ni in range(len(grid_nodes)):
-        if PbSum[ni] == 0:
-            continue
-        for nj in range(len(grid_nodes)):
-            PbMat[nj][ni] /= PbSum[ni]
 
-    # Transform node data Mat to edge data Edges
-    PaEdges = []
-    for paei in range(len(PaSrcList)):
-        PaEdges.append([PaMat[PaSrcList[paei]][PaDstList[paei]]])
-    PbEdges = []
-    for pbei in range(len(PbSrcList)):
-        PbEdges.append([PbMat[PbSrcList[pbei]][PbDstList[pbei]]])
-
-    FNGraph = dgl.graph((PaSrcList, PaDstList), num_nodes=len(grid_nodes))
-    FNGraph.edata['pre_w'] = torch.Tensor(PaEdges)
-    BNGraph = dgl.graph((PbSrcList, PbDstList), num_nodes=len(grid_nodes))
-    BNGraph.edata['pre_w'] = torch.Tensor(PbEdges)
+    FNGraph = matOD2G(mat=PaMat, oList=PaSrcList, dList=PaDstList, nGNodes=len(grid_nodes))
+    BNGraph = matOD2G(mat=PbMat, oList=PbSrcList, dList=PbDstList, nGNodes=len(grid_nodes))
 
     # Save two neighborhood graphs
     dgl.save_graphs(os.path.join(curDir, 'FBGraphs.dgl'), [FNGraph, BNGraph])
@@ -271,6 +284,7 @@ def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_n
 def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_workers=10):
     """
     Split data in hours (request.csv, GDVQ.npy) of each DDW Snapshot Graph
+    :param num_workers: number of cpu cores to split data asynchronously
     :param fPath: The path of request data file
     :param folder: The path of the working directory/folder
     :param grid_nodes: Grid Coordinate List storing the coordinates of each grid/node
@@ -314,32 +328,6 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_worke
     pool.join()
 
     print('Data splitting complete.')
-
-
-def inWhichGrid(coord, grid_info):
-    """
-    Specify which grid it is in for a given coordinate
-    :param coord: (latitude, longitude)
-    :param grid_info: grid_info dictionary
-    :return: row, column, grid ID
-    """
-    lat, lng = coord
-    row = math.floor((grid_info['maxLat'] - lat) / grid_info['gridLat'])
-    col = math.floor((lng - grid_info['minLng']) / grid_info['gridLng'])
-    gridID = row * grid_info['lngGridNum'] + col
-    return row, col, gridID
-
-
-def ID2Coord(gridID, grid_info):
-    """
-    Given a grid ID, decide the coordinate of that grid
-    :param gridID: Given Grid ID
-    :param grid_info: Grid map information
-    :return: Grid Map Coordinates of that grid in format of (row, col)
-    """
-    row = math.floor(gridID / grid_info['lngGridNum'])
-    col = gridID - row * grid_info['lngGridNum']
-    return row, col
 
 
 if __name__ == '__main__':

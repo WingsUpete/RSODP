@@ -55,6 +55,8 @@ class SpatAttLayer(nn.Module):
         del h_bwd
         del h_geo
 
+        # TODO: BatchNorm
+
         return h
 
 

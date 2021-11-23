@@ -84,8 +84,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     criterion_D = nn.MSELoss()
     criterion_G = nn.MSELoss()
     if loss_function == 'SmoothL1Loss':
-        criterion_D = nn.SmoothL1Loss()
-        criterion_G = nn.SmoothL1Loss()
+        criterion_D = nn.SmoothL1Loss(beta=10)
+        criterion_G = nn.SmoothL1Loss(beta=10)
     elif loss_function == 'MSELoss':
         criterion_D = nn.MSELoss()
         criterion_G = nn.MSELoss()

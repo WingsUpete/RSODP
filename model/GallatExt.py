@@ -29,7 +29,7 @@ class GallatExt(nn.Module):
         # Temporal Attention Layer
         self.tempAttLayer = TempAttLayer(query_dim=self.query_dim, embed_dim=self.spat_embed_dim, rec_merge='mean', comb_merge='mean')
 
-        # Transferring Attention Layer
+        # Transferring Attention Layer TODO: activate with ReLU
         self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim, activate_function_method=None)
 
     def forward(self, record, query, ref_D=None, ref_G=None, predict_G=False, ref_extent=0.2):

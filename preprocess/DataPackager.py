@@ -23,6 +23,27 @@ sys.stderr = stderr
 EPSILON = 1e-12
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
+# Features
+DAY_OF_WEEK = ['weekday', 'weekend']
+PERIOD_OF_DAY = ['morning', 'noon', 'afternoon', 'night', 'midnight']
+
+
+def decideDayOfWeek(dayOfWeek):
+    return 'weekday' if dayOfWeek < 5 else 'weekend'
+
+
+def decidePeriodOfDay(hourOfDay):
+    if hourOfDay < 6:
+        return 'midnight'
+    elif hourOfDay < 12:
+        return 'morning'
+    elif hourOfDay < 14:
+        return 'noon'
+    elif hourOfDay < 18:
+        return 'afternoon'
+    else:   # 18 ~ 23
+        return 'night'
+
 
 def haversine(c0, c1):
     """
@@ -120,6 +141,27 @@ def pushGraphEdge(gSrc: list, gDst: list, wList, src, dst, weight):
         return gSrc, gDst
 
 
+def matOD2G(mat, oList: list, dList: list, nGNodes):
+    # pre weights
+    matSum = np.sum(mat, axis=0)
+    for nj in range(nGNodes):
+        if matSum[nj] == 0:
+            continue
+        for ni in range(nGNodes):
+            mat[ni][nj] /= matSum[nj]
+
+    # Transform node data mat to edge data edges
+    edges = []
+    for i in range(len(oList)):
+        edges.append([mat[oList[i]][dList[i]]])
+
+    # Create DGL Graph
+    graph = dgl.graph((oList, dList), num_nodes=nGNodes)
+    graph.edata['pre_w'] = torch.Tensor(edges)
+
+    return graph
+
+
 def getGeoGraph(grid_nodes, L):
     """
     Get RTc data object with the given information
@@ -137,20 +179,8 @@ def getGeoGraph(grid_nodes, L):
                 # if i->j is small enough, j is i's geographical neighbor, j should propagate its features to i, so j->i
                 RSrcList, RDstList = pushGraphEdge(RSrcList, RDstList, None, j, i, None)
                 TcMat[j][i] = 1 / (adjacency_matrix[i][j] + EPSILON)
-    TcSum = np.sum(TcMat, axis=0)
-    for ni in range(len(grid_nodes)):
-        if TcSum[ni] == 0:
-            continue
-        for nj in range(len(grid_nodes)):
-            TcMat[nj][ni] /= TcSum[ni]
 
-    # Transform node data TcMat to edge data TcEdges
-    TcEdges = []
-    for i in range(len(RSrcList)):
-        TcEdges.append([TcMat[RSrcList[i]][RDstList[i]]])
-
-    GeoGraph = dgl.graph((RSrcList, RDstList), num_nodes=len(grid_nodes))
-    GeoGraph.edata['pre_w'] = torch.Tensor(TcEdges)
+    GeoGraph = matOD2G(mat=TcMat, oList=RSrcList, dList=RDstList, nGNodes=len(grid_nodes))
 
     print('Geographical info generated.')
     return GeoGraph
@@ -159,160 +189,6 @@ def getGeoGraph(grid_nodes, L):
 def saveGeoGraph(geoG, fPath):
     dgl.save_graphs(fPath, geoG)
     print('Geographical info saved to {}'.format(fPath))
-
-
-def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_nodes, grid_info):
-    curH = i + 1
-    print('-> Splitting hour-wise data No.{}/{}.'.format(curH, totalH))
-
-    # Folder for this split of data
-    curDir = os.path.join(folder, str(curH))
-    if not os.path.isdir(curDir):
-        os.mkdir(curDir)
-
-    dayOfWeek = lowT.weekday()  # Mon: 0, ..., Sun: 6
-    oneHotDOW = [1 if j == dayOfWeek else 0 for j in range(7)]
-    hourOfDay = lowT.hour
-    oneHotHOD = [1 if j == hourOfDay else 0 for j in range(24)]
-
-    GDVQ = {}
-
-    # Save request.csv
-    if export_requests:
-        df_split.to_csv(os.path.join(curDir, 'request.csv'), index=False)
-
-    # Get request matrix G
-    request_matrix = np.zeros((len(grid_nodes), len(grid_nodes)))
-    for split_i in range(len(df_split)):
-        curData = df_split.iloc[split_i]
-        srcRow, srcCol, srcID = inWhichGrid((curData['src lat'], curData['src lng']), grid_info)
-        dstRow, dstCol, dstID = inWhichGrid((curData['dst lat'], curData['dst lng']), grid_info)
-        # request_matrix[srcID][dstID] += curData['volume']
-        request_matrix[srcID][dstID] += 1
-    GDVQ['G'] = request_matrix.astype(np.float32)
-
-    # Get Feature Matrix V
-    feature_vectors = []
-    query_feature_vectors = []
-    inDs = np.sum(request_matrix, axis=0)  # Col-wise: Total number of nodes pointing to current node = In Degree
-    min_inDs = np.min(inDs)
-    norm_inDs = (inDs - min_inDs) / (np.max(inDs) - min_inDs)
-    outDs = np.sum(request_matrix, axis=1)  # Row-wise: Total number of nodes current node points to = Out Degree
-    min_outDs = np.min(outDs)
-    norm_outDs = (outDs - min_outDs) / (np.max(outDs) - min_outDs)
-    GDVQ['D'] = outDs.astype(np.float32)
-
-    for vi in range(len(grid_nodes)):
-        viRow, viCol = ID2Coord(vi, grid_info)
-        query_feature_vector = oneHotDOW + oneHotHOD + [
-            viRow / grid_info['latGridNum'],
-            viCol / grid_info['lngGridNum'],
-        ]
-        query_feature_vectors.append(query_feature_vector)
-        feature_vector = query_feature_vector + [
-            norm_outDs[vi],
-            norm_inDs[vi]
-        ]
-        feature_vectors.append(feature_vector)
-    feature_matrix = np.array(feature_vectors)
-    query_feature_matrix = np.array(query_feature_vectors)
-    GDVQ['V'] = feature_matrix.astype(np.float32)
-    GDVQ['Q'] = query_feature_matrix.astype(np.float32)
-
-    # Save GDVQ as GDVQ.npy
-    np.save(os.path.join(curDir, 'GDVQ.npy'), GDVQ)
-
-    # Get Psi (Forward Neighborhood) and Phi (Backward Neighborhood)
-    PaSrcList, PaDstList = [], []  # Psi & a
-    PbSrcList, PbDstList = [], []  # Phi & b
-    PaMat = np.zeros((len(grid_nodes), len(grid_nodes)))
-    PbMat = np.zeros((len(grid_nodes), len(grid_nodes)))
-    for rmi in range(len(grid_nodes)):
-        for rmj in range(len(grid_nodes)):
-            if request_matrix[rmi][rmj] > 0:  # In this case, rmi == rmj is valid
-                # rmi -> rmj, rmj is rmi's forward neighbor, rmi is rmj's backward neighbor
-                # forward neighborhood: features of rmj should propagate to rmi, thus rmj->rmi
-                # backward neighborhood: features of rmi should propagate to rmj, thus rmi->rmj
-                PaSrcList, PaDstList = pushGraphEdge(PaSrcList, PaDstList, None, rmj, rmi, None)
-                PaMat[rmj][rmi] = request_matrix[rmi][rmj] + EPSILON
-                PbSrcList, PbDstList = pushGraphEdge(PbSrcList, PbDstList, None, rmi, rmj, None)
-                PbMat[rmi][rmj] = request_matrix[rmi][rmj] + EPSILON
-    PaSum = np.sum(PaMat, axis=0)
-    for ni in range(len(grid_nodes)):
-        if PaSum[ni] == 0:
-            continue
-        for nj in range(len(grid_nodes)):
-            PaMat[nj][ni] /= PaSum[ni]
-    PbSum = np.sum(PbMat, axis=0)
-    for ni in range(len(grid_nodes)):
-        if PbSum[ni] == 0:
-            continue
-        for nj in range(len(grid_nodes)):
-            PbMat[nj][ni] /= PbSum[ni]
-
-    # Transform node data Mat to edge data Edges
-    PaEdges = []
-    for paei in range(len(PaSrcList)):
-        PaEdges.append([PaMat[PaSrcList[paei]][PaDstList[paei]]])
-    PbEdges = []
-    for pbei in range(len(PbSrcList)):
-        PbEdges.append([PbMat[PbSrcList[pbei]][PbDstList[pbei]]])
-
-    FNGraph = dgl.graph((PaSrcList, PaDstList), num_nodes=len(grid_nodes))
-    FNGraph.edata['pre_w'] = torch.Tensor(PaEdges)
-    BNGraph = dgl.graph((PbSrcList, PbDstList), num_nodes=len(grid_nodes))
-    BNGraph.edata['pre_w'] = torch.Tensor(PbEdges)
-
-    # Save two neighborhood graphs
-    dgl.save_graphs(os.path.join(curDir, 'FBGraphs.dgl'), [FNGraph, BNGraph])
-
-
-def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_workers=10):
-    """
-    Split data in hours (request.csv, GDVQ.npy) of each DDW Snapshot Graph
-    :param fPath: The path of request data file
-    :param folder: The path of the working directory/folder
-    :param grid_nodes: Grid Coordinate List storing the coordinates of each grid/node
-    :param grid_info: Grid Map Information
-    :param export_requests: whether the split requests should be exported if space is enough
-    :return: nothing
-    """
-    df = pd.read_csv(fPath)
-    df['request time'] = pd.to_datetime(df['request time'])
-    minT, maxT = df['request time'].min(), df['request time'].max()
-    totalH = round((maxT - minT) / pd.Timedelta(hours=1))
-    lowT, upT = minT, minT + pd.Timedelta(hours=1)
-    print('Dataframe prepared. Total hours = {}.'.format(totalH))
-
-    # TODO: check min max requests of a time slot
-    req_info = {
-        'name': path2FileNameWithoutExt(fPath),
-        'minT': minT.strftime(DATE_FORMAT),
-        'maxT': maxT.strftime(DATE_FORMAT),
-        'totalH': totalH
-    }
-    req_info_path = os.path.join(folder, 'req_info.json')
-    with open(req_info_path, 'w') as f:
-        json.dump(req_info, f)
-    print('requests info saved to {}'.format(req_info_path))
-
-    pool = multiprocessing.Pool(processes=num_workers)
-    for i in range(totalH):
-        # Filter data
-        mask = ((df['request time'] >= lowT) & (df['request time'] < upT)).values
-        df_split = df.iloc[mask]
-
-        # Handle data
-        pool.apply_async(handleRequestData, args=(i, totalH, folder, lowT, df_split, export_requests, grid_nodes, grid_info))
-        # handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_nodes, grid_info)    # DEBUG
-
-        lowT += pd.Timedelta(hours=1)
-        upT += pd.Timedelta(hours=1)
-
-    pool.close()
-    pool.join()
-
-    print('Data splitting complete.')
 
 
 def inWhichGrid(coord, grid_info):
@@ -339,6 +215,204 @@ def ID2Coord(gridID, grid_info):
     row = math.floor(gridID / grid_info['lngGridNum'])
     col = gridID - row * grid_info['lngGridNum']
     return row, col
+
+
+def oneHotEncode(val, valList: list):
+    return [1 if val == valInList else 0 for valInList in valList]
+
+
+def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_nodes, grid_info):
+    curH = i + 1
+    print('-> Splitting hour-wise data No.{}/{}.'.format(curH, totalH))
+
+    # Folder for this split of data
+    curDir = os.path.join(folder, str(curH))
+    if not os.path.isdir(curDir):
+        os.mkdir(curDir)
+
+    dayOfWeek = lowT.weekday()  # Mon: 0, ..., Sun: 6
+    dayTypeOfWeek = decideDayOfWeek(dayOfWeek)
+    oneHotDOW = [1 if j == dayOfWeek else 0 for j in range(7)]
+    oneHotDTOW = oneHotEncode(dayTypeOfWeek, DAY_OF_WEEK)
+
+    hourOfDay = lowT.hour       # 0 ~ 23
+    periodOfDay = decidePeriodOfDay(hourOfDay)
+    oneHotHOD = [1 if j == hourOfDay else 0 for j in range(24)]
+    oneHotPOD = oneHotEncode(periodOfDay, PERIOD_OF_DAY)
+
+    GDVQ = {}
+
+    # Save request.csv
+    if export_requests:
+        df_split.to_csv(os.path.join(curDir, 'request.csv'), index=False)
+
+    # Get request matrix G
+    request_matrix = np.zeros((len(grid_nodes), len(grid_nodes)))
+    for split_i in range(len(df_split)):
+        curData = df_split.iloc[split_i]
+        srcRow, srcCol, srcID = inWhichGrid((curData['src lat'], curData['src lng']), grid_info)
+        dstRow, dstCol, dstID = inWhichGrid((curData['dst lat'], curData['dst lng']), grid_info)
+        # request_matrix[srcID][dstID] += curData['volume']
+        request_matrix[srcID][dstID] += 1
+    GDVQ['G'] = request_matrix.astype(np.float32)
+
+    # Get Feature Matrix V
+    inDs = np.sum(request_matrix, axis=0)  # Col-wise: Total number of nodes pointing to current node = In Degree
+    outDs = np.sum(request_matrix, axis=1)  # Row-wise: Total number of nodes current node points to = Out Degree
+    GDVQ['D'] = outDs.astype(np.float32)
+
+    # for further calculations
+    GDVQ['inD_min'] = np.min(inDs.astype(np.float32))
+    GDVQ['inD_max'] = np.max(inDs.astype(np.float32))
+    GDVQ['outD_min'] = np.min(outDs.astype(np.float32))
+    GDVQ['outD_max'] = np.max(outDs.astype(np.float32))
+
+    feature_vectors = []
+    query_feature_vectors = []
+    for vi in range(len(grid_nodes)):
+        viRow, viCol = ID2Coord(vi, grid_info)
+        # query vector
+        query_feature_vector = oneHotDOW + oneHotDTOW + oneHotHOD + oneHotPOD + [
+            viRow / (grid_info['latGridNum'] - 1),
+            viCol / (grid_info['lngGridNum'] - 1),
+            vi / (len(grid_nodes) - 1)
+        ]
+        query_feature_vectors.append(query_feature_vector)
+        # feature vector: Note that Ds are not yet normalized
+        feature_vector = [
+            outDs[vi],
+            inDs[vi]
+        ] + query_feature_vector
+        feature_vectors.append(feature_vector)
+    feature_matrix = np.array(feature_vectors)
+    query_feature_matrix = np.array(query_feature_vectors)
+    GDVQ['V'] = feature_matrix.astype(np.float32)
+    GDVQ['Q'] = query_feature_matrix.astype(np.float32)
+
+    # Save GDVQ as GDVQ.npy
+    np.save(os.path.join(curDir, 'GDVQ.npy'), GDVQ)
+
+    # Get Psi (Forward Neighborhood) and Phi (Backward Neighborhood)
+    PaSrcList, PaDstList = [], []  # Psi & a
+    PbSrcList, PbDstList = [], []  # Phi & b
+    PaMat = np.zeros((len(grid_nodes), len(grid_nodes)))
+    PbMat = np.zeros((len(grid_nodes), len(grid_nodes)))
+    for rmi in range(len(grid_nodes)):
+        for rmj in range(len(grid_nodes)):
+            if request_matrix[rmi][rmj] > 0:  # In this case, rmi == rmj is valid
+                # rmi -> rmj, rmj is rmi's forward neighbor, rmi is rmj's backward neighbor
+                # forward neighborhood: features of rmj should propagate to rmi, thus rmj->rmi
+                # backward neighborhood: features of rmi should propagate to rmj, thus rmi->rmj
+                PaSrcList, PaDstList = pushGraphEdge(PaSrcList, PaDstList, None, rmj, rmi, None)
+                PaMat[rmj][rmi] = request_matrix[rmi][rmj] + EPSILON
+                PbSrcList, PbDstList = pushGraphEdge(PbSrcList, PbDstList, None, rmi, rmj, None)
+                PbMat[rmi][rmj] = request_matrix[rmi][rmj] + EPSILON
+
+    FNGraph = matOD2G(mat=PaMat, oList=PaSrcList, dList=PaDstList, nGNodes=len(grid_nodes))
+    BNGraph = matOD2G(mat=PbMat, oList=PbSrcList, dList=PbDstList, nGNodes=len(grid_nodes))
+
+    # Save two neighborhood graphs
+    dgl.save_graphs(os.path.join(curDir, 'FBGraphs.dgl'), [FNGraph, BNGraph])
+
+
+def minMaxScale(x, minVal, maxVal):
+    if x < minVal or x > maxVal:
+        sys.stderr.write('MinMaxScaling: %.2f not in [%.2f, %.2f]!\n' % (x, minVal, maxVal))
+        exit(-6)
+    if maxVal - minVal == 0:
+        sys.stderr.write('MinMaxScaling: Warning --> min(%.2f) == max(%.2f)\n' % (minVal, maxVal))
+        return 0
+    return (x - minVal) / (maxVal - minVal)
+
+
+def normDnV(i, totalH, folder, inD_min, inD_max, outD_min, outD_max):
+    curH = i + 1
+    print('-> Normalizing Ds in Vs for data No.{}/{}.'.format(curH, totalH))
+    GDVQ = np.load(os.path.join(folder, str(curH), 'GDVQ.npy'), allow_pickle=True).item()
+    curV = GDVQ['V']
+    for ni in range(len(curV)):
+        curV[ni][0] = minMaxScale(curV[ni][0], outD_min, outD_max)
+        curV[ni][1] = minMaxScale(curV[ni][1], inD_min, inD_max)
+    GDVQ['V'] = curV
+    np.save(os.path.join(folder, str(curH), 'GDVQ.npy'), GDVQ)
+
+
+def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_workers=10):
+    """
+    Split data in hours (request.csv, GDVQ.npy) of each DDW Snapshot Graph
+    :param num_workers: number of cpu cores to split data asynchronously
+    :param fPath: The path of request data file
+    :param folder: The path of the working directory/folder
+    :param grid_nodes: Grid Coordinate List storing the coordinates of each grid/node
+    :param grid_info: Grid Map Information
+    :param export_requests: whether the split requests should be exported if space is enough
+    :return: nothing
+    """
+    df = pd.read_csv(fPath)
+    df['request time'] = pd.to_datetime(df['request time'])
+    minT, maxT = df['request time'].min(), df['request time'].max()
+    totalH = round((maxT - minT) / pd.Timedelta(hours=1))
+    lowT, upT = minT, minT + pd.Timedelta(hours=1)
+    print('Dataframe prepared. Total hours = {}.'.format(totalH))
+
+    req_info = {
+        'name': path2FileNameWithoutExt(fPath),
+        'minT': minT.strftime(DATE_FORMAT),
+        'maxT': maxT.strftime(DATE_FORMAT),
+        'totalH': totalH
+    }
+    req_info_path = os.path.join(folder, 'req_info.json')
+    with open(req_info_path, 'w') as f:
+        json.dump(req_info, f)
+    print('requests info saved to {}'.format(req_info_path))
+
+    pool = multiprocessing.Pool(processes=num_workers)
+    for i in range(totalH):
+        # Filter data
+        mask = ((df['request time'] >= lowT) & (df['request time'] < upT)).values
+        df_split = df.iloc[mask]
+
+        # Handle data
+        pool.apply_async(handleRequestData, args=(i, totalH, folder, lowT, df_split, export_requests, grid_nodes, grid_info))
+        # handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_nodes, grid_info)    # DEBUG
+
+        lowT += pd.Timedelta(hours=1)
+        upT += pd.Timedelta(hours=1)
+
+    pool.close()
+    pool.join()
+    print()
+
+    # Normalize Ds in the feature vectors
+    # 1. Get min max
+    inD_min, outD_min = float('inf'), float('inf')
+    inD_max, outD_max = -1, -1
+    for i in range(totalH):
+        curH = i + 1
+        sys.stdout.write('\r-> Scanning data No.{}/{} for to calculate min & max.'.format(curH, totalH))
+        sys.stdout.flush()
+        GDVQ = np.load(os.path.join(folder, str(curH), 'GDVQ.npy'), allow_pickle=True).item()
+        inD_min = min(GDVQ['inD_min'], inD_min)
+        outD_min = min(GDVQ['outD_min'], outD_min)
+        inD_max = max(GDVQ['inD_max'], inD_max)
+        outD_max = max(GDVQ['outD_max'], outD_max)
+        del GDVQ['inD_min']
+        del GDVQ['inD_max']
+        del GDVQ['outD_min']
+        del GDVQ['outD_max']
+        np.save(os.path.join(folder, str(curH), 'GDVQ.npy'), GDVQ)
+    print("\ninD_min = %.2f, inD_max = %.2f\noutD_min = %.2f, outD_max = %.2f\n" % (
+        inD_min, inD_max, outD_min, outD_max
+    ))
+    # 2. Normalize Ds in Vs
+    pool = multiprocessing.Pool(processes=num_workers)
+    for i in range(totalH):
+        pool.apply_async(normDnV, args=(i, totalH, folder, inD_min, inD_max, outD_min, outD_max))
+
+    pool.close()
+    pool.join()
+
+    print('Data splitting complete.')
 
 
 if __name__ == '__main__':

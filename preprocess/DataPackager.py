@@ -23,6 +23,27 @@ sys.stderr = stderr
 EPSILON = 1e-12
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
+# Features
+DAY_OF_WEEK = ['weekday', 'weekend']
+PERIOD_OF_DAY = ['morning', 'noon', 'afternoon', 'night', 'midnight']
+
+
+def decideDayOfWeek(dayOfWeek):
+    return 'weekday' if dayOfWeek < 5 else 'weekend'
+
+
+def decidePeriodOfDay(hourOfDay):
+    if hourOfDay < 6:
+        return 'midnight'
+    elif hourOfDay < 12:
+        return 'morning'
+    elif hourOfDay < 14:
+        return 'noon'
+    elif hourOfDay < 18:
+        return 'afternoon'
+    else:   # 18 ~ 23
+        return 'night'
+
 
 def haversine(c0, c1):
     """
@@ -196,6 +217,10 @@ def ID2Coord(gridID, grid_info):
     return row, col
 
 
+def oneHotEncode(val, valList: list):
+    return [1 if val == valInList else 0 for valInList in valList]
+
+
 def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_nodes, grid_info):
     curH = i + 1
     print('-> Splitting hour-wise data No.{}/{}.'.format(curH, totalH))
@@ -206,9 +231,14 @@ def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_n
         os.mkdir(curDir)
 
     dayOfWeek = lowT.weekday()  # Mon: 0, ..., Sun: 6
+    dayTypeOfWeek = decideDayOfWeek(dayOfWeek)
     oneHotDOW = [1 if j == dayOfWeek else 0 for j in range(7)]
-    hourOfDay = lowT.hour
+    oneHotDTOW = oneHotEncode(dayTypeOfWeek, DAY_OF_WEEK)
+
+    hourOfDay = lowT.hour       # 0 ~ 23
+    periodOfDay = decidePeriodOfDay(hourOfDay)
     oneHotHOD = [1 if j == hourOfDay else 0 for j in range(24)]
+    oneHotPOD = oneHotEncode(periodOfDay, PERIOD_OF_DAY)
 
     GDVQ = {}
 
@@ -227,28 +257,32 @@ def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_n
     GDVQ['G'] = request_matrix.astype(np.float32)
 
     # Get Feature Matrix V
-    feature_vectors = []
-    query_feature_vectors = []
     inDs = np.sum(request_matrix, axis=0)  # Col-wise: Total number of nodes pointing to current node = In Degree
-    min_inDs = np.min(inDs)
-    norm_inDs = (inDs - min_inDs) / (np.max(inDs) - min_inDs)
     outDs = np.sum(request_matrix, axis=1)  # Row-wise: Total number of nodes current node points to = Out Degree
-    min_outDs = np.min(outDs)
-    norm_outDs = (outDs - min_outDs) / (np.max(outDs) - min_outDs)
     GDVQ['D'] = outDs.astype(np.float32)
 
+    # for further calculations
+    GDVQ['inD_min'] = np.min(inDs.astype(np.float32))
+    GDVQ['inD_max'] = np.max(inDs.astype(np.float32))
+    GDVQ['outD_min'] = np.min(outDs.astype(np.float32))
+    GDVQ['outD_max'] = np.max(outDs.astype(np.float32))
+
+    feature_vectors = []
+    query_feature_vectors = []
     for vi in range(len(grid_nodes)):
         viRow, viCol = ID2Coord(vi, grid_info)
-        query_feature_vector = oneHotDOW + oneHotHOD + [
+        # query vector
+        query_feature_vector = oneHotDOW + oneHotDTOW + oneHotHOD + oneHotPOD + [
             viRow / (grid_info['latGridNum'] - 1),
             viCol / (grid_info['lngGridNum'] - 1),
             vi / (len(grid_nodes) - 1)
         ]
         query_feature_vectors.append(query_feature_vector)
-        feature_vector = query_feature_vector + [
-            norm_outDs[vi],
-            norm_inDs[vi]
-        ]
+        # feature vector: Note that Ds are not yet normalized
+        feature_vector = [
+            outDs[vi],
+            inDs[vi]
+        ] + query_feature_vector
         feature_vectors.append(feature_vector)
     feature_matrix = np.array(feature_vectors)
     query_feature_matrix = np.array(query_feature_vectors)
@@ -281,6 +315,28 @@ def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_n
     dgl.save_graphs(os.path.join(curDir, 'FBGraphs.dgl'), [FNGraph, BNGraph])
 
 
+def minMaxScale(x, minVal, maxVal):
+    if x < minVal or x > maxVal:
+        sys.stderr.write('MinMaxScaling: %.2f not in [%.2f, %.2f]!\n' % (x, minVal, maxVal))
+        exit(-6)
+    if maxVal - minVal == 0:
+        sys.stderr.write('MinMaxScaling: Warning --> min(%.2f) == max(%.2f)\n' % (minVal, maxVal))
+        return 0
+    return (x - minVal) / (maxVal - minVal)
+
+
+def normDnV(i, totalH, folder, inD_min, inD_max, outD_min, outD_max):
+    curH = i + 1
+    print('-> Normalizing Ds in Vs for data No.{}/{}.'.format(curH, totalH))
+    GDVQ = np.load(os.path.join(folder, str(curH), 'GDVQ.npy'), allow_pickle=True).item()
+    curV = GDVQ['V']
+    for ni in range(len(curV)):
+        curV[ni][0] = minMaxScale(curV[ni][0], outD_min, outD_max)
+        curV[ni][1] = minMaxScale(curV[ni][1], inD_min, inD_max)
+    GDVQ['V'] = curV
+    np.save(os.path.join(folder, str(curH), 'GDVQ.npy'), GDVQ)
+
+
 def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_workers=10):
     """
     Split data in hours (request.csv, GDVQ.npy) of each DDW Snapshot Graph
@@ -299,7 +355,6 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_worke
     lowT, upT = minT, minT + pd.Timedelta(hours=1)
     print('Dataframe prepared. Total hours = {}.'.format(totalH))
 
-    # TODO: check min max requests of a time slot
     req_info = {
         'name': path2FileNameWithoutExt(fPath),
         'minT': minT.strftime(DATE_FORMAT),
@@ -323,6 +378,36 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_worke
 
         lowT += pd.Timedelta(hours=1)
         upT += pd.Timedelta(hours=1)
+
+    pool.close()
+    pool.join()
+    print()
+
+    # Normalize Ds in the feature vectors
+    # 1. Get min max
+    inD_min, outD_min = float('inf'), float('inf')
+    inD_max, outD_max = -1, -1
+    for i in range(totalH):
+        curH = i + 1
+        sys.stdout.write('\r-> Scanning data No.{}/{} for to calculate min & max.'.format(curH, totalH))
+        sys.stdout.flush()
+        GDVQ = np.load(os.path.join(folder, str(curH), 'GDVQ.npy'), allow_pickle=True).item()
+        inD_min = min(GDVQ['inD_min'], inD_min)
+        outD_min = min(GDVQ['outD_min'], outD_min)
+        inD_max = max(GDVQ['inD_max'], inD_max)
+        outD_max = max(GDVQ['outD_max'], outD_max)
+        del GDVQ['inD_min']
+        del GDVQ['inD_max']
+        del GDVQ['outD_min']
+        del GDVQ['outD_max']
+        np.save(os.path.join(folder, str(curH), 'GDVQ.npy'), GDVQ)
+    print("\ninD_min = %.2f, inD_max = %.2f\noutD_min = %.2f, outD_max = %.2f\n" % (
+        inD_min, inD_max, outD_min, outD_max
+    ))
+    # 2. Normalize Ds in Vs
+    pool = multiprocessing.Pool(processes=num_workers)
+    for i in range(totalH):
+        pool.apply_async(normDnV, args=(i, totalH, folder, inD_min, inD_max, outD_min, outD_max))
 
     pool.close()
     pool.join()

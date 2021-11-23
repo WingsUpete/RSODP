@@ -205,8 +205,9 @@ def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_n
     for vi in range(len(grid_nodes)):
         viRow, viCol = ID2Coord(vi, grid_info)
         query_feature_vector = oneHotDOW + oneHotHOD + [
-            viRow / grid_info['latGridNum'],
-            viCol / grid_info['lngGridNum'],
+            viRow / (grid_info['latGridNum'] - 1),
+            viCol / (grid_info['lngGridNum'] - 1),
+            vi / (len(grid_nodes) - 1)
         ]
         query_feature_vectors.append(query_feature_vector)
         feature_vector = query_feature_vector + [

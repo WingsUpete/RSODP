@@ -21,6 +21,9 @@ class SpatAttLayer(nn.Module):
         self.geoSpatAttLayer = MultiHeadPwGaANLayer(self.feat_dim, self.hidden_dim, self.num_heads, gate=self.gate, merge=self.merge)
         self.proj_fc = nn.Linear(self.feat_dim, self.hidden_dim, bias=False)
 
+        # BatchNorm
+        self.bn = nn.BatchNorm1d(num_features=self.hidden_dim * 4)
+
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -56,8 +59,12 @@ class SpatAttLayer(nn.Module):
         del h_geo
 
         # TODO: BatchNorm
+        normH = self.bn(torch.transpose(h, -2, -1))
+        reshapedH = torch.transpose(normH, -2, -1)
+        del h
+        del normH
 
-        return h
+        return reshapedH
 
 
 if __name__ == '__main__':

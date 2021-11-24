@@ -59,7 +59,8 @@ def batch2res(batch, device, args):
     return res_D, res_G, target_D, target_G
 
 
-def HA(bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT, logr=Logger(activate=False), use_gpu=True,
+def HA(bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT, logr=Logger(activate=False),
+       use_gpu=True, gpu_id=Config.GPU_ID_DEFAULT,
        data_dir=Config.DATA_DIR_DEFAULT, total_H=Config.DATA_TOTAL_H, start_H=Config.DATA_START_H,
        scheme=Config.HA_FEAT_DEFAULT):
     """
@@ -69,7 +70,7 @@ def HA(bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT, logr=Lo
         The evaluation metrics include RMSE, MAPE, MAE
     """
     # CUDA if needed
-    device = torch.device('cuda:0' if (use_gpu and torch.cuda.is_available()) else 'cpu')
+    device = torch.device('cuda:%d' % gpu_id if (use_gpu and torch.cuda.is_available()) else 'cpu')
     logr.log('> device: {}\n'.format(device))
 
     # Historical Average
@@ -104,6 +105,7 @@ if __name__ == '__main__':
     parser.add_argument('-ts', '--start_hour', type=int, default=Config.DATA_START_H, help='Specify the starting hour for data, default = {}'.format(Config.DATA_START_H))
     parser.add_argument('-ld', '--log_dir', type=str, default=Config.LOG_DIR_DEFAULT, help='Specify where to create a log file. If log files are not wanted, value will be None'.format(Config.LOG_DIR_DEFAULT))
     parser.add_argument('-gpu', '--gpu', type=int, default=Config.USE_GPU_DEFAULT, help='Specify whether to use GPU, default = {}'.format(Config.USE_GPU_DEFAULT))
+    parser.add_argument('-gid', '--gpu_id', type=int, default=Config.GPU_ID_DEFAULT, help='Specify which GPU to use, default = {}'.format(Config.GPU_ID_DEFAULT))
     parser.add_argument('-sch', '--scheme', type=str, default=Config.HA_FEAT_DEFAULT, help='Specify HA scheme, default = {}'.format(Config.HA_FEAT_DEFAULT))
     FLAGS, unparsed = parser.parse_known_args()
 
@@ -111,6 +113,6 @@ if __name__ == '__main__':
     logger = Logger(activate=True, logging_folder=FLAGS.log_dir) if FLAGS.log_dir else Logger(activate=False)
 
     # HA
-    HA(bs=FLAGS.batch_size, num_workers=FLAGS.cores, logr=logger, use_gpu=(FLAGS.gpu == 1),
+    HA(bs=FLAGS.batch_size, num_workers=FLAGS.cores, logr=logger, use_gpu=(FLAGS.gpu == 1), gpu_id=FLAGS.gpu_id,
        data_dir=FLAGS.data_dir, total_H=FLAGS.hours, start_H=FLAGS.start_hour, scheme=FLAGS.scheme)
     logger.close()

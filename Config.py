@@ -16,6 +16,7 @@ DATA_DIR_DEFAULT = 'data/ny2016_0101to0331/'
 LOG_DIR_DEFAULT = 'log/'
 WORKERS_DEFAULT = 36
 USE_GPU_DEFAULT = 1
+GPU_ID_DEFAULT = 0
 NETWORK_DEFAULT = 'GallatExt'
 MODE_DEFAULT = 'train'
 EVAL_DEFAULT = 'eval.pt'   # should be a model file name

@@ -38,14 +38,15 @@ def batch2res(batch, device, *args):
 
 def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Config.MAX_EPOCHS_DEFAULT,
           eval_freq=Config.EVAL_FREQ_DEFAULT, opt=Config.OPTIMIZER_DEFAULT, num_workers=Config.WORKERS_DEFAULT,
-          use_gpu=True, data_dir=Config.DATA_DIR_DEFAULT, logr=Logger(activate=False), model=Config.NETWORK_DEFAULT,
+          use_gpu=True, gpu_id=Config.GPU_ID_DEFAULT,
+          data_dir=Config.DATA_DIR_DEFAULT, logr=Logger(activate=False), model=Config.NETWORK_DEFAULT,
           model_save_dir=Config.MODEL_SAVE_DIR_DEFAULT, train_type=Config.TRAIN_TYPE_DEFAULT,
           metrics_threshold=torch.Tensor([0]), total_H=Config.DATA_TOTAL_H, start_H=Config.DATA_START_H,
           hidden_dim=Config.HIDDEN_DIM_DEFAULT, feat_dim=Config.FEAT_DIM_DEFAULT, query_dim=Config.QUERY_DIM_DEFAULT,
           retrain_model_path=Config.RETRAIN_MODEL_PATH_DEFAULT, loss_function=Config.LOSS_FUNC_DEFAULT,
           tune=True, ref_ext=Config.REF_EXTENT):
     # CUDA if possible
-    device = torch.device('cuda:0' if (use_gpu and torch.cuda.is_available()) else 'cpu')
+    device = torch.device('cuda:%d' % gpu_id if (use_gpu and torch.cuda.is_available()) else 'cpu')
     logr.log('> device: {}\n'.format(device))
 
     # Load DataSet
@@ -213,7 +214,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     logr.log('> Training finished.\n')
 
 
-def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT, use_gpu=True,
+def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT,
+             use_gpu=True, gpu_id=Config.GPU_ID_DEFAULT,
              data_dir=Config.DATA_DIR_DEFAULT, logr=Logger(activate=False),
              total_H=Config.DATA_TOTAL_H, start_H=Config.DATA_START_H,
              tune=True, ref_ext=Config.REF_EXTENT):
@@ -224,7 +226,7 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
         The evaluation metrics include RMSE, MAPE, MAE
     """
     # CUDA if needed
-    device = torch.device('cuda:0' if (use_gpu and torch.cuda.is_available()) else 'cpu')
+    device = torch.device('cuda:%d' % gpu_id if (use_gpu and torch.cuda.is_available()) else 'cpu')
     logr.log('> device: {}\n'.format(device))
 
     # Load Model
@@ -283,6 +285,7 @@ if __name__ == '__main__':
     parser.add_argument('-ld', '--log_dir', type=str, default=Config.LOG_DIR_DEFAULT, help='Specify where to create a log file. If log files are not wanted, value will be None'.format(Config.LOG_DIR_DEFAULT))
     parser.add_argument('-c', '--cores', type=int, default=Config.WORKERS_DEFAULT, help='number of workers (cores used), default = {}'.format(Config.WORKERS_DEFAULT))
     parser.add_argument('-gpu', '--gpu', type=int, default=Config.USE_GPU_DEFAULT, help='Specify whether to use GPU, default = {}'.format(Config.USE_GPU_DEFAULT))
+    parser.add_argument('-gid', '--gpu_id', type=int, default=Config.GPU_ID_DEFAULT, help='Specify which GPU to use, default = {}'.format(Config.GPU_ID_DEFAULT))
     parser.add_argument('-net', '--network', type=str, default=Config.NETWORK_DEFAULT,  help='Specify which model/network to use, default = {}'.format(Config.NETWORK_DEFAULT))
     parser.add_argument('-m', '--mode', type=str, default=Config.MODE_DEFAULT, help='Specify which mode the discriminator runs in (train, eval), default = {}'.format(Config.MODE_DEFAULT))
     parser.add_argument('-e', '--eval', type=str, default=Config.EVAL_DEFAULT, help='Specify the location of saved network to be loaded for evaluation, default = {}'.format(Config.EVAL_DEFAULT))
@@ -306,7 +309,8 @@ if __name__ == '__main__':
     if working_mode == 'train':
         train(lr=FLAGS.learning_rate, bs=FLAGS.batch_size, ep=FLAGS.max_epochs,
               eval_freq=FLAGS.eval_freq, opt=FLAGS.optimizer, num_workers=FLAGS.cores,
-              use_gpu=(FLAGS.gpu == 1), data_dir=FLAGS.data_dir, logr=logger, model=FLAGS.network,
+              use_gpu=(FLAGS.gpu == 1), gpu_id=FLAGS.gpu_id,
+              data_dir=FLAGS.data_dir, logr=logger, model=FLAGS.network,
               model_save_dir=FLAGS.model_save_dir, train_type=FLAGS.train_type,
               metrics_threshold=torch.Tensor([FLAGS.metrics_threshold]),
               total_H=FLAGS.hours, start_H=FLAGS.start_hour, hidden_dim=FLAGS.hidden_dim,
@@ -322,7 +326,8 @@ if __name__ == '__main__':
             logger.close()
             exit(-1)
         # Normal
-        evaluate(eval_file, bs=FLAGS.batch_size, num_workers=FLAGS.cores, use_gpu=(FLAGS.gpu == 1),
+        evaluate(eval_file, bs=FLAGS.batch_size, num_workers=FLAGS.cores,
+                 use_gpu=(FLAGS.gpu == 1), gpu_id=FLAGS.gpu_id,
                  data_dir=FLAGS.data_dir, logr=logger, total_H=FLAGS.hours, start_H=FLAGS.start_hour,
                  tune=(FLAGS.tune == 1), ref_ext=FLAGS.ref_extent)
         logger.close()

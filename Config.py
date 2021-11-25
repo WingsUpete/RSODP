@@ -1,5 +1,3 @@
-import torch
-
 # DEBUG FLAGS
 TRAIN_JUST_ONE_ROUND = False
 PROFILE = False

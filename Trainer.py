@@ -82,11 +82,11 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
 
     # Loss Function
     logr.log('> Using {} as the Loss Function.\n'.format(loss_function))
-    criterion_D = nn.MSELoss()
-    criterion_G = nn.MSELoss()
+    criterion_D = nn.SmoothL1Loss(beta=Config.SMOOTH_L1_LOSS_BETA_DEFAULT)
+    criterion_G = nn.SmoothL1Loss(beta=Config.SMOOTH_L1_LOSS_BETA_DEFAULT)
     if loss_function == 'SmoothL1Loss':
-        criterion_D = nn.SmoothL1Loss(beta=10)
-        criterion_G = nn.SmoothL1Loss(beta=10)
+        criterion_D = nn.SmoothL1Loss(beta=Config.SMOOTH_L1_LOSS_BETA_DEFAULT)
+        criterion_G = nn.SmoothL1Loss(beta=Config.SMOOTH_L1_LOSS_BETA_DEFAULT)
     elif loss_function == 'MSELoss':
         criterion_D = nn.MSELoss()
         criterion_G = nn.MSELoss()

@@ -7,7 +7,7 @@ CHECK_GRADS = False
 
 # Basic
 LEARNING_RATE_DEFAULT = 1e-2    # 0.01
-MAX_EPOCHS_DEFAULT = 300
+MAX_EPOCHS_DEFAULT = 200
 EVAL_FREQ_DEFAULT = 5
 BATCH_SIZE_DEFAULT = 32
 OPTIMIZER_DEFAULT = 'ADAM'
@@ -23,11 +23,13 @@ EVAL_DEFAULT = 'eval.pt'   # should be a model file name
 MODEL_SAVE_DIR_DEFAULT = 'model_save/'
 
 MAX_NORM_DEFAULT = 10.0
+
 FEAT_DIM_DEFAULT = 43
 QUERY_DIM_DEFAULT = 41
 HIDDEN_DIM_DEFAULT = 16
 
-LOSS_FUNC_DEFAULT = 'MSELoss'
+LOSS_FUNC_DEFAULT = 'SmoothL1Loss'
+SMOOTH_L1_LOSS_BETA_DEFAULT = 10
 
 NUM_HEADS_DEFAULT = 3
 
@@ -47,7 +49,7 @@ REF_EXTENT = 0.2    # If -1, using scaling factor scheme; Else, a simple leverag
 TRAIN_TYPES = ['normal', 'pretrain', 'retrain']
 TRAIN_TYPE_DEFAULT = 'normal'
 
-RETRAIN_MODEL_PATH_DEFAULT = 'res/Gallat_pretrain/20210514_07_17_13.pth'
+RETRAIN_MODEL_PATH_DEFAULT = 'pretrained_model.pth'
 
 DATA_TOTAL_H = -1
 DATA_START_H = -1

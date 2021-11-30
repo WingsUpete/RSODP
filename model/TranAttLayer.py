@@ -65,27 +65,37 @@ class TranAttLayer(nn.Module):
         del el_exp
         del er_exp
 
-        # Simple normalization
-        Q = F.softmax(A, dim=-1)
-
+        G = None
         if ref_G is not None:
-            norm_ref_G = F.normalize(ref_G, p=1.0, dim=-1)
             if ref_extent == -1:
-                Q = F.softmax(norm_ref_G * A, dim=-1)
+                G = ref_G * A
             else:
-                Q = Q * (1 - ref_extent) + norm_ref_G * ref_extent
+                G = A * (1 - ref_extent) + ref_G * ref_extent
 
-        Q = F.dropout(Q, p=0.1)
         del A
-
-        # Expand D as well
-        rel_D = demands.repeat(1, 1, num_nodes)
-
-        # Get graph
-        G = Q * rel_D
-        del Q
-        del rel_D
         del num_nodes
+
+        # # Simple normalization
+        # Q = F.softmax(A, dim=-1)
+        #
+        # if ref_G is not None:
+        #     norm_ref_G = F.normalize(ref_G, p=1.0, dim=-1)
+        #     if ref_extent == -1:
+        #         Q = F.softmax(norm_ref_G * A, dim=-1)
+        #     else:
+        #         Q = Q * (1 - ref_extent) + norm_ref_G * ref_extent
+        #
+        # Q = F.dropout(Q, p=0.1)
+        # del A
+        #
+        # # Expand D as well
+        # rel_D = demands.repeat(1, 1, num_nodes)
+        #
+        # # Get graph
+        # G = Q * rel_D
+        # del Q
+        # del rel_D
+        # del num_nodes
 
         return G
 

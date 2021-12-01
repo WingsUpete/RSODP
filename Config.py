@@ -39,7 +39,7 @@ TUNE_DEFAULT = 1
 TEMP_FEAT_NAMES = ['St', 'Sp', 'Stpm', 'Stpp']
 HA_FEAT_DEFAULT = 'all'     # ['all', 'tendency', 'periodicity']
 
-D_PERCENTAGE_DEFAULT = 0.8
+D_PERCENTAGE_DEFAULT = 0.5
 G_PERCENTAGE_DEFAULT = 1 - D_PERCENTAGE_DEFAULT
 
 REF_EXTENT = 0.2    # If -1, using scaling factor scheme; Else, a simple leverage

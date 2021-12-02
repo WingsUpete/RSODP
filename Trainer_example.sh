@@ -19,6 +19,9 @@ python HistoricalAverage.py -dr data/ny2016_0101to0331/ -th 2184 -ts 1 -c 20 -gi
 python HistoricalAverage.py -dr data/ny2016_0101to0331/ -th 2184 -ts 1 -c 20 -gid 0 -sch tendency
 python HistoricalAverage.py -dr data/ny2016_0101to0331/ -th 2184 -ts 1 -c 20 -gid 0 -sch periodicity
 
+### AR ###
+python AutoRegressive.py -dr data/ny2016_0101to0331/ -th 1064 -ts 1 -c 20 -gid 0
+
 
 
 ##### Other Models #####

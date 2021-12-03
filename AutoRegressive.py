@@ -33,10 +33,10 @@ def cal(recordGD, device):
     nRec = len(recordGD['St'])
 
     Dnp = np.array([recordGD['St'][i][0].reshape(-1).cpu().numpy() for i in range(nRec)])
-    resD = torch.from_numpy(AR(Dnp, lag=None, n_channels=int(bs * num_nodes), start=nRec, end=nRec).reshape(bs, num_nodes)).to(device)
+    resD = torch.from_numpy(AR(Dnp, lag=0, n_channels=int(bs * num_nodes), start=nRec, end=nRec).reshape(bs, num_nodes)).to(device)
 
     Gnp = np.array([recordGD['St'][i][1].reshape(-1).cpu().numpy() for i in range(nRec)])
-    resG = torch.from_numpy(AR(Gnp, lag=None, n_channels=int(bs * num_nodes * num_nodes), start=nRec, end=nRec).reshape(bs, num_nodes, num_nodes)).to(device)
+    resG = torch.from_numpy(AR(Gnp, lag=0, n_channels=int(bs * num_nodes * num_nodes), start=nRec, end=nRec).reshape(bs, num_nodes, num_nodes)).to(device)
 
     return resD, resG
 

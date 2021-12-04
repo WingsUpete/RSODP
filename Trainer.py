@@ -72,6 +72,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
             net = GallatExt(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_heads=Config.NUM_HEADS_DEFAULT)
         elif model == 'GallatExtFull':
             net = GallatExtFull(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_heads=Config.NUM_HEADS_DEFAULT)
+        elif model == 'AR':
+            net = None
     logr.log('> Model Structure:\n{}\n'.format(net))
 
     # Select Optimizer

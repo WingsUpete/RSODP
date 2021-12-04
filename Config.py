@@ -1,4 +1,5 @@
 # DEBUG FLAGS
+TRAIN_JUST_ONE_BATCH = False
 TRAIN_JUST_ONE_ROUND = False
 PROFILE = False
 CHECK_GRADS = False
@@ -16,6 +17,7 @@ WORKERS_DEFAULT = 36
 USE_GPU_DEFAULT = 1
 GPU_ID_DEFAULT = 0
 NETWORK_DEFAULT = 'GallatExt'
+NETWORKS = ['Gallat', 'GallatExt', 'GallatExtFull', 'AR']
 MODE_DEFAULT = 'train'
 EVAL_DEFAULT = 'eval.pt'   # should be a model file name
 MODEL_SAVE_DIR_DEFAULT = 'model_save/'

@@ -5,11 +5,12 @@ import torch.nn.functional as F
 
 
 class ScaledDotProductAttention(nn.Module):
-    def __init__(self, query_dim, embed_dim, merge='sum'):
+    def __init__(self, query_dim, embed_dim, merge='sum', num_channel=4):
         super(ScaledDotProductAttention, self).__init__()
         self.query_dim = query_dim
         self.embed_dim = embed_dim
         self.merge = merge
+        self.num_channel = num_channel    # for cat
 
         self.rooted_embed_dim = math.sqrt(self.embed_dim)
 
@@ -20,6 +21,10 @@ class ScaledDotProductAttention(nn.Module):
 
         # BatchNorm
         self.bn = nn.BatchNorm1d(num_features=self.embed_dim)
+        if self.merge == 'mean' or self.merge == 'sum':
+            self.bn = nn.BatchNorm1d(num_features=self.embed_dim)
+        elif self.merge == 'cat':
+            self.bn = nn.BatchNorm1d(num_features=self.embed_dim * self.num_channel)
 
         self.reset_parameters()
 

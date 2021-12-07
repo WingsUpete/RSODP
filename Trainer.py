@@ -15,7 +15,7 @@ sys.stderr = stderr
 
 from utils import Logger, batch2device, plot_grad_flow, evalMetrics, METRICS_FUNCTIONS_MAP, genMetricsResStorage, aggrMetricsRes, wrapMetricsRes
 from RSODPDataSet import RSODPDataSet
-from model import Gallat, GallatExt, GallatExtFull
+from model import Gallat, GallatExt, GallatExtFull, AR
 from HistoricalAverage import avgRec
 
 import Config
@@ -30,8 +30,11 @@ def batch2res(batch, device, *args):
         record, recordGD, query, target_G, target_D = batch2device(record=record, record_GD=recordGD, query=query,
                                                                    target_G=target_G, target_D=target_D, device=device)
 
-    ref_D, ref_G = avgRec(recordGD, scheme=scheme) if tune else (None, None)
-    res_D, res_G = net(record, query, ref_D, ref_G, predict_G=True, ref_extent=ref_ext)
+    if net.__class__.__name__ == 'AR':
+        res_D, res_G = net(recordGD)
+    else:
+        ref_D, ref_G = avgRec(recordGD, scheme=scheme) if tune else (None, None)
+        res_D, res_G = net(record, query, ref_D, ref_G, predict_G=True, ref_extent=ref_ext)
 
     return res_D, res_G, target_D, target_G
 
@@ -72,6 +75,9 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
             net = GallatExt(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_heads=Config.NUM_HEADS_DEFAULT)
         elif model == 'GallatExtFull':
             net = GallatExtFull(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_heads=Config.NUM_HEADS_DEFAULT)
+        elif model == 'AR':
+            net = AR(p=Config.HISTORICAL_RECORDS_NUM_DEFAULT)
+            tune = False
     logr.log('> Model Structure:\n{}\n'.format(net))
 
     # Select Optimizer
@@ -140,13 +146,19 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
             if Config.PROFILE:
                 with profiler.profile(profile_memory=True, use_cuda=True) as prof:
                     with profiler.record_function('model_inference'):
-                        res_D, res_G = net(record, query, predict_G=predict_G)   # if pretrain, res_G = None
-                        loss = (criterion_D(res_D, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G) * Config.G_PERCENTAGE_DEFAULT) if predict_G else criterion_D(res_D, target_D)
+                        if model == 'AR':
+                            res_D, res_G = net(record_GD)
+                        else:
+                            res_D, res_G = net(record, query, predict_G=predict_G)   # if pretrain, res_G = None
                 logr.log(prof.key_averages().table(sort_by="cuda_time_total"))
                 exit(100)
 
-            ref_D, ref_G = avgRec(record_GD) if tune else (None, None)
-            res_D, res_G = net(record, query, ref_D, ref_G, predict_G=predict_G, ref_extent=ref_ext)  # if pretrain, res_G = None
+            if model == 'AR':
+                res_D, res_G = net(record_GD)
+            else:
+                ref_D, ref_G = avgRec(record_GD) if tune else (None, None)
+                res_D, res_G = net(record, query, ref_D, ref_G, predict_G=predict_G, ref_extent=ref_ext)  # if pretrain, res_G = None
+
             loss = (criterion_D(res_D, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G) * Config.G_PERCENTAGE_DEFAULT) if predict_G else criterion_D(res_D, target_D)
 
             loss.backward()
@@ -162,7 +174,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                 train_metrics_res = aggrMetricsRes(train_metrics_res, [metrics_threshold], 1,
                                                    res_D, target_D, res_G, target_G)
 
-            if Config.TRAIN_JUST_ONE_ROUND:     # DEBUG
+            if Config.TRAIN_JUST_ONE_BATCH:     # DEBUG
                 if i == 0:
                     break
 
@@ -188,8 +200,12 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                     if device:
                         val_record, val_record_GD, val_query, val_target_G, val_target_D = batch2device(val_record, val_record_GD, val_query, val_target_G, val_target_D, device)
 
-                    val_ref_D, val_ref_G = avgRec(val_record_GD) if tune else (None, None)
-                    val_res_D, val_res_G = net(val_record, val_query, val_ref_D, val_ref_G, predict_G=predict_G, ref_extent=ref_ext)
+                    if model == 'AR':
+                        val_res_D, val_res_G = net(val_record_GD)
+                    else:
+                        val_ref_D, val_ref_G = avgRec(val_record_GD) if tune else (None, None)
+                        val_res_D, val_res_G = net(val_record, val_query, val_ref_D, val_ref_G, predict_G=predict_G, ref_extent=ref_ext)
+
                     val_loss = criterion_D(val_res_D, val_target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(val_res_G, val_target_G) * Config.G_PERCENTAGE_DEFAULT if predict_G else criterion_D(val_res_D, val_target_D)
 
                     val_loss_total += val_loss.item()
@@ -207,8 +223,9 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                     torch.save(net, model_name)
                     logr.log('Model: {} has been saved since it achieves smaller loss.\n'.format(model_name))
 
-        # if epoch_i == 0:    # break
-        #     break
+        if Config.TRAIN_JUST_ONE_ROUND:
+            if epoch_i == 0:    # DEBUG
+                break
 
     # End Training
     logr.log('> Training finished.\n')
@@ -233,6 +250,8 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
     logr.log('> Loading {}\n'.format(model_name))
     net = torch.load(model_name)
     logr.log('> Model Structure:\n{}\n'.format(net))
+    if net.__class__.__name__ == 'AR':
+        tune = False
 
     if device:
         net.to(device)

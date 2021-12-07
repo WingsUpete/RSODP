@@ -8,7 +8,7 @@ from .PwGaANLayer import MultiHeadPwGaANLayer
 
 
 class SpatAttLayer(nn.Module):
-    def __init__(self, feat_dim, hidden_dim, num_heads, gate=False, merge='cat'):
+    def __init__(self, feat_dim, hidden_dim, num_heads, gate=False, merge='mean'):
         super(SpatAttLayer, self).__init__()
         self.feat_dim = feat_dim
         self.hidden_dim = hidden_dim
@@ -23,6 +23,10 @@ class SpatAttLayer(nn.Module):
 
         # BatchNorm
         self.bn = nn.BatchNorm1d(num_features=self.hidden_dim * 4)
+        if self.merge == 'mean':
+            self.bn = nn.BatchNorm1d(num_features=self.hidden_dim * 4)
+        elif self.merge == 'cat':
+            self.bn = nn.BatchNorm1d(num_features=self.hidden_dim * (3 * self.num_heads + 1))
 
         self.reset_parameters()
 

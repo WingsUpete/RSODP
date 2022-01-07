@@ -86,7 +86,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
             if refAR.__class__.__name__ != 'AR':
                 sys.stderr.write('[TRAIN] With LSTNet, the referenced AR model is not an AR model (got %s)!\n' % refAR.__class__.__name__)
                 exit(-555)
-            net = LSTNet(refAR=refAR)
+            net = LSTNet(p=Config.HISTORICAL_RECORDS_NUM_DEFAULT, refAR=refAR)
 
     logr.log('> Model Structure:\n{}\n'.format(net))
 

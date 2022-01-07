@@ -2,10 +2,10 @@ import torch
 import torch.nn as nn
 
 
-class STCNN(nn.Module):
-    def __init__(self, ):
-        super(STCNN, self).__init__()
+class LSTNet(nn.Module):
+    def __init__(self, refAR):
+        super(LSTNet, self).__init__()
+        self.refAR = refAR
 
     def forward(self, recordGD):
-        pass
-
+        return -1

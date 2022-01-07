@@ -39,12 +39,14 @@ TIME_SLOT_ENDURANCE_DEFAULT = 1     # hour
 TUNE_DEFAULT = 1
 
 TEMP_FEAT_NAMES = ['St', 'Sp', 'Stpm', 'Stpp']
+LSTNET_TEMP_FEAT = 'Stext'
+ALL_TEMP_FEAT_NAMES = TEMP_FEAT_NAMES + [LSTNET_TEMP_FEAT]
 HA_FEAT_DEFAULT = 'all'     # ['all', 'tendency', 'periodicity']
 
 D_PERCENTAGE_DEFAULT = 0.5
 G_PERCENTAGE_DEFAULT = 1 - D_PERCENTAGE_DEFAULT
 
-REF_EXTENT = 0.2    # If -1, using scaling factor scheme; Else, a simple leverage
+REF_EXTENT = -1    # If -1, using scaling factor scheme; Else, a simple leverage (normally 0.2)
 
 TRAIN_TYPES = ['normal', 'pretrain', 'retrain']
 TRAIN_TYPE_DEFAULT = 'normal'

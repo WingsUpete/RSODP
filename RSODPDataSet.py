@@ -48,13 +48,13 @@ class RSODPDataSetEntity(DGLDataset):
         cur_sample_GDs = {}
         for temp_feat in Config.ALL_TEMP_FEAT_NAMES:
             # No graph data for 'Stext' (this is for LSTNet)
-            if temp_feat != 'Stext':
+            if temp_feat != Config.LSTNET_TEMP_FEAT:
                 temp_feat_sample_inputs = []
             temp_feat_sample_GDs = []
             for ts in cur_sample_ref['record'][temp_feat]:
                 GDVQ_ts = np.load(os.path.join(self.data_dir, str(ts), 'GDVQ.npy'), allow_pickle=True).item()
                 G_ts, D_ts, V_ts = torch.from_numpy(GDVQ_ts['G']), torch.from_numpy(GDVQ_ts['D']), torch.from_numpy(GDVQ_ts['V'])
-                if temp_feat != 'Stext':
+                if temp_feat != Config.LSTNET_TEMP_FEAT:
                     (fg_ts, bg_ts,), _ = dgl.load_graphs(os.path.join(self.data_dir, str(ts), 'FBGraphs.dgl'))
                     (gg_ts,), _ = dgl.load_graphs(os.path.join(self.data_dir, 'GeoGraph.dgl'))
                     fg_ts.ndata['v'] = V_ts
@@ -63,7 +63,7 @@ class RSODPDataSetEntity(DGLDataset):
                     temp_feat_sample_inputs.append((fg_ts, bg_ts, gg_ts))
                 temp_feat_sample_GDs.append((D_ts, G_ts))
             # No graph data for 'Stext' (this is for LSTNet)
-            if temp_feat != 'Stext':
+            if temp_feat != Config.LSTNET_TEMP_FEAT:
                 cur_sample_inputs[temp_feat] = temp_feat_sample_inputs
             cur_sample_GDs[temp_feat] = temp_feat_sample_GDs
 

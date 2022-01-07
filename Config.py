@@ -19,9 +19,9 @@ GPU_ID_DEFAULT = 0
 NETWORK_DEFAULT = 'GallatExt'
 NETWORKS = ['Gallat', 'GallatExt', 'GallatExtFull', 'AR', 'LSTNet']
 NETWORKS_TUNABLE = ['Gallat', 'GallatExt', 'GallatExtFull']
-REF_AR_DEFAULT = 'refAR.pt'  # should be an AR model file name
+REF_AR_DEFAULT = 'refAR.pth'  # should be an AR model file name
 MODE_DEFAULT = 'train'
-EVAL_DEFAULT = 'eval.pt'   # should be a model file name
+EVAL_DEFAULT = 'eval.pth'   # should be a model file name
 MODEL_SAVE_DIR_DEFAULT = 'model_save/'
 
 MAX_NORM_DEFAULT = 10.0

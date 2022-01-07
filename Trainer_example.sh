@@ -36,6 +36,10 @@ python Trainer.py -dr data/ny2016_0101to0331/ -th 2184 -ts 1 -c 20 -gid 0 -m tra
 #python Trainer.py -dr data/ny2016_0101to0331/ -th 2184 -ts 1 -c 20 -gid 0 -m train -tt retrain -r pretrained_model.pth -t 1
 #python Trainer.py -dr data/ny2016_0101to0331/ -th 2184 -ts 1 -c 20 -gid 0 -m eval -e eval.pth
 
+### LSTNet ###
+#python Trainer.py -dr data/ny2016_0101to0331/ -th 2184 -ts 1 -c 20 -gid 0 -m train -net LSTNet -rar refAR.pth
+#python Trainer.py -dr data/ny2016_0101to0331/ -th 2184 -ts 1 -c 20 -gid 0 -m eval -e eval.pth
+
 
 
 ##### Variants #####

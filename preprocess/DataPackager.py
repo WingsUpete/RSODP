@@ -372,7 +372,7 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_worke
         mask = ((df['request time'] >= lowT) & (df['request time'] < upT)).values
         df_split = df.iloc[mask]
 
-        # Handle data
+        # Handle data TODO:modify with tqdm
         pool.apply_async(handleRequestData, args=(i, totalH, folder, lowT, df_split, export_requests, grid_nodes, grid_info))
         # handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_nodes, grid_info)    # DEBUG
 
@@ -406,7 +406,7 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_worke
     ))
     # 2. Normalize Ds in Vs
     pool = multiprocessing.Pool(processes=num_workers)
-    for i in range(totalH): #TODO:modify with tqdm
+    for i in range(totalH):     # TODO:modify with tqdm
         pool.apply_async(normDnV, args=(i, totalH, folder, inD_min, inD_max, outD_min, outD_max))
 
     pool.close()

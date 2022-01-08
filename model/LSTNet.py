@@ -20,9 +20,15 @@ class LSTNet(nn.Module):
         self.l_stConv_last_G = nn.Linear(in_features=1, out_features=1, bias=True)
         self.l_stConv_current_G = nn.Linear(in_features=1, out_features=1, bias=True)
 
+        self.bn_stConv_D = nn.BatchNorm1d(num_features=1)
+        self.bn_stConv_G = nn.BatchNorm1d(num_features=1)
+
         # GRU
         self.gru_D = nn.GRU(1, 1)
         self.gru_G = nn.GRU(1, 1)
+
+        self.bn_gru_D = nn.BatchNorm1d(num_features=1)
+        self.bn_gru_G = nn.BatchNorm1d(num_features=1)
 
         # Att
         self.l_att_l_D = nn.Linear(in_features=1, out_features=1, bias=False)
@@ -72,6 +78,10 @@ class LSTNet(nn.Module):
 
         bs, num_nodes = stConvD.shape[-3], stConvD.shape[-2]
 
+        # stConvBatchNorm
+        stConvD = self.bn_stConv_D(stConvD.reshape(-1, 1)).reshape(self.L, bs, num_nodes, 1)
+        stConvG = self.bn_stConv_G(stConvG.reshape(-1, 1)).reshape(self.L, bs, num_nodes, num_nodes, 1)
+
         # GRU
         reshapeStConvD = stConvD.reshape(self.L, -1, 1)
         del stConvD
@@ -87,6 +97,10 @@ class LSTNet(nn.Module):
         del reshapeStConvG
         del tempH_D
         del tempH_G
+
+        # GRUBatchNorm
+        tempO_D = self.bn_gru_D(tempO_D.reshape(-1, 1)).reshape(self.p, -1, 1)
+        tempO_G = self.bn_gru_G(tempO_G.reshape(-1, 1)).reshape(self.p, -1, 1)
 
         # Att: left - each, right - last
         lastO_D = torch.stack([tempO_D[-1] for _ in range(self.p)])

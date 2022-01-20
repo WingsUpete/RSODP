@@ -62,7 +62,6 @@ class SpatAttLayer(nn.Module):
         del h_bwd
         del h_geo
 
-        # TODO: BatchNorm
         normH = self.bn(torch.transpose(h, -2, -1))
         reshapedH = torch.transpose(normH, -2, -1)
         del h

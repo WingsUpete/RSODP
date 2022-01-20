@@ -34,8 +34,8 @@ def haversine(c0, c1):
 def batch2device(record, record_GD: dict, query, target_G: torch.Tensor, target_D: torch.Tensor, device):
     """ Transfer all sample data into the device (cpu/gpu) """
     # Transfer record
-    for temp_feat in Config.TEMP_FEAT_NAMES:
-        if record is not None:
+    for temp_feat in Config.ALL_TEMP_FEAT_NAMES:
+        if temp_feat != Config.LSTNET_TEMP_FEAT and record is not None:
             record[temp_feat] = [(fg.to(device), bg.to(device), gg.to(device)) for (fg, bg, gg) in record[temp_feat]]
         record_GD[temp_feat] = [(curD.to(device), curG.to(device)) for (curD, curG) in record_GD[temp_feat]]
 
@@ -89,6 +89,7 @@ def MAPE(y_pred: torch.Tensor, y_true: torch.Tensor, threshold=torch.Tensor([0])
     y_true_mask = y_true > threshold
     y_pred_filter = y_pred[y_true_mask]
     y_true_filter = y_true[y_true_mask]
+    # TODO: use EPSILON instead of 1
     return torch.sum(torch.abs((y_true_filter - y_pred_filter)/(y_true_filter + 1))), len(y_true_filter)
 
 

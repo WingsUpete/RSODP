@@ -13,9 +13,9 @@ from dgl.dataloading import GraphDataLoader
 sys.stderr.close()
 sys.stderr = stderr
 
-from utils import Logger, batch2device, plot_grad_flow, evalMetrics, METRICS_FUNCTIONS_MAP, genMetricsResStorage, aggrMetricsRes, wrapMetricsRes
+from utils import Logger, batch2device, plot_grad_flow, evalMetrics, genMetricsResStorage, aggrMetricsRes, wrapMetricsRes
 from RSODPDataSet import RSODPDataSet
-from model import Gallat, GallatExt, GallatExtFull, AR
+from model import Gallat, GallatExt, GallatExtFull, AR, LSTNet
 from HistoricalAverage import avgRec
 
 import Config
@@ -30,7 +30,7 @@ def batch2res(batch, device, *args):
         record, recordGD, query, target_G, target_D = batch2device(record=record, record_GD=recordGD, query=query,
                                                                    target_G=target_G, target_D=target_D, device=device)
 
-    if net.__class__.__name__ == 'AR':
+    if net.__class__.__name__ in ['AR', 'LSTNet']:
         res_D, res_G = net(recordGD)
     else:
         ref_D, ref_G = avgRec(recordGD, scheme=scheme) if tune else (None, None)
@@ -42,7 +42,8 @@ def batch2res(batch, device, *args):
 def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Config.MAX_EPOCHS_DEFAULT,
           eval_freq=Config.EVAL_FREQ_DEFAULT, opt=Config.OPTIMIZER_DEFAULT, num_workers=Config.WORKERS_DEFAULT,
           use_gpu=True, gpu_id=Config.GPU_ID_DEFAULT,
-          data_dir=Config.DATA_DIR_DEFAULT, logr=Logger(activate=False), model=Config.NETWORK_DEFAULT,
+          data_dir=Config.DATA_DIR_DEFAULT, logr=Logger(activate=False),
+          model=Config.NETWORK_DEFAULT, ref_AR_path=Config.REF_AR_DEFAULT,
           model_save_dir=Config.MODEL_SAVE_DIR_DEFAULT, train_type=Config.TRAIN_TYPE_DEFAULT,
           metrics_threshold=torch.Tensor([0]), total_H=Config.DATA_TOTAL_H, start_H=Config.DATA_START_H,
           hidden_dim=Config.HIDDEN_DIM_DEFAULT, feat_dim=Config.FEAT_DIM_DEFAULT, query_dim=Config.QUERY_DIM_DEFAULT,
@@ -77,7 +78,16 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
             net = GallatExtFull(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_heads=Config.NUM_HEADS_DEFAULT)
         elif model == 'AR':
             net = AR(p=Config.HISTORICAL_RECORDS_NUM_DEFAULT)
-            tune = False
+        elif model == 'LSTNet':
+            if not os.path.exists(ref_AR_path):
+                sys.stderr.write('[TRAIN] With LSTNet, the referenced AR model path %s is invalid!\n' % ref_AR_path)
+                exit(-55)
+            refAR = torch.load(ref_AR_path)
+            if refAR.__class__.__name__ != 'AR':
+                sys.stderr.write('[TRAIN] With LSTNet, the referenced AR model is not an AR model (got %s)!\n' % refAR.__class__.__name__)
+                exit(-555)
+            net = LSTNet(p=Config.HISTORICAL_RECORDS_NUM_DEFAULT, refAR=refAR)
+
     logr.log('> Model Structure:\n{}\n'.format(net))
 
     # Select Optimizer
@@ -117,7 +127,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     # Summarize Info
     logr.log('\nlearning_rate = {}, epochs = {}, num_workers = {}\n'.format(lr, ep, num_workers))
     logr.log('eval_freq = {}, batch_size = {}, optimizer = {}\n'.format(eval_freq, bs, opt))
-    logr.log('tune = %s%s\n' % (str(tune), ", ref_extent = %.2f" % ref_ext.item() if tune else ""))
+    if model in Config.NETWORKS_TUNABLE:
+        logr.log('tune = %s%s\n' % (str(tune), ", ref_extent = %.2f" % ref_ext.item() if tune else ""))
 
     # Start Training
     logr.log('\nStart Training!\n')
@@ -153,7 +164,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                 logr.log(prof.key_averages().table(sort_by="cuda_time_total"))
                 exit(100)
 
-            if model == 'AR':
+            if model in ['AR', 'LSTNet']:
                 res_D, res_G = net(record_GD)
             else:
                 ref_D, ref_G = avgRec(record_GD) if tune else (None, None)
@@ -200,7 +211,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                     if device:
                         val_record, val_record_GD, val_query, val_target_G, val_target_D = batch2device(val_record, val_record_GD, val_query, val_target_G, val_target_D, device)
 
-                    if model == 'AR':
+                    if model in ['AR', 'LSTNet']:
                         val_res_D, val_res_G = net(val_record_GD)
                     else:
                         val_ref_D, val_ref_G = avgRec(val_record_GD) if tune else (None, None)
@@ -217,7 +228,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                 logr.log('!!! Validation : loss = %.6f, RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' %
                          (val_loss_total, metrics_threshold_val, valid_metrics_res[task]['RMSE']['val'], metrics_threshold_val, valid_metrics_res[task]['MAPE']['val'], metrics_threshold_val, valid_metrics_res[task]['MAE']['val']))
 
-                if val_loss_total < min_eval_loss:
+                if epoch_i >= 10 and val_loss_total < min_eval_loss:
                     min_eval_loss = val_loss_total
                     model_name = os.path.join(model_save_dir, '{}.pth'.format(logr.time_tag))
                     torch.save(net, model_name)
@@ -250,8 +261,6 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
     logr.log('> Loading {}\n'.format(model_name))
     net = torch.load(model_name)
     logr.log('> Model Structure:\n{}\n'.format(net))
-    if net.__class__.__name__ == 'AR':
-        tune = False
 
     if device:
         net.to(device)
@@ -259,8 +268,7 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
 
     # Load DataSet
     logr.log('> Loading DataSet from {}\n'.format(data_dir))
-    dataset = RSODPDataSet(data_dir, his_rec_num=Config.HISTORICAL_RECORDS_NUM_DEFAULT,
-                           time_slot_endurance=Config.TIME_SLOT_ENDURANCE_DEFAULT, total_H=total_H, start_at=start_H)
+    dataset = RSODPDataSet(data_dir, his_rec_num=Config.HISTORICAL_RECORDS_NUM_DEFAULT, time_slot_endurance=Config.TIME_SLOT_ENDURANCE_DEFAULT, total_H=total_H, start_at=start_H)
     validloader = GraphDataLoader(dataset.valid_set, batch_size=bs, shuffle=False, num_workers=num_workers)
     testloader = GraphDataLoader(dataset.test_set, batch_size=bs, shuffle=False, num_workers=num_workers)
     logr.log('> Validation batches: {}, Test batches: {}\n'.format(len(validloader), len(testloader)))
@@ -270,16 +278,15 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
         ref_ext = torch.Tensor([ref_ext]).to(device)
 
     # Log Info
-    logr.log('tune = %s%s\n' % (str(tune), ", ref_extent = %.2f" % ref_ext.item() if tune else ""))
+    if net.__class__.__name__ in Config.NETWORKS_TUNABLE:
+        logr.log('tune = %s%s\n' % (str(tune), ", ref_extent = %.2f" % ref_ext.item() if tune else ""))
 
     net.eval()
     # 1.
-    evalMetrics(validloader, 'Validation', batch2res, device, logr,
-                Config.HA_FEAT_DEFAULT, net, tune, ref_ext)
+    evalMetrics(validloader, 'Validation', batch2res, device, logr, Config.HA_FEAT_DEFAULT, net, tune, ref_ext)
 
     # 2.
-    evalMetrics(testloader, 'Test', batch2res, device, logr,
-                Config.HA_FEAT_DEFAULT, net, tune, ref_ext)
+    evalMetrics(testloader, 'Test', batch2res, device, logr, Config.HA_FEAT_DEFAULT, net, tune, ref_ext)
 
     # End Evaluation
     logr.log('> Evaluation finished.\n')
@@ -306,6 +313,7 @@ if __name__ == '__main__':
     parser.add_argument('-gpu', '--gpu', type=int, default=Config.USE_GPU_DEFAULT, help='Specify whether to use GPU, default = {}'.format(Config.USE_GPU_DEFAULT))
     parser.add_argument('-gid', '--gpu_id', type=int, default=Config.GPU_ID_DEFAULT, help='Specify which GPU to use, default = {}'.format(Config.GPU_ID_DEFAULT))
     parser.add_argument('-net', '--network', type=str, default=Config.NETWORK_DEFAULT,  help='Specify which model/network to use, default = {}'.format(Config.NETWORK_DEFAULT))
+    parser.add_argument('-rar', '--ref_ar', type=str, default=Config.REF_AR_DEFAULT, help='Specify the location of the saved AR model to be used as a reference for training LSTNet, default = {}'.format(Config.REF_AR_DEFAULT))
     parser.add_argument('-m', '--mode', type=str, default=Config.MODE_DEFAULT, help='Specify which mode the discriminator runs in (train, eval), default = {}'.format(Config.MODE_DEFAULT))
     parser.add_argument('-e', '--eval', type=str, default=Config.EVAL_DEFAULT, help='Specify the location of saved network to be loaded for evaluation, default = {}'.format(Config.EVAL_DEFAULT))
     parser.add_argument('-md', '--model_save_dir', type=str, default=Config.MODEL_SAVE_DIR_DEFAULT, help='Specify the location of network to be saved, default = {}'.format(Config.MODEL_SAVE_DIR_DEFAULT))
@@ -329,7 +337,8 @@ if __name__ == '__main__':
         train(lr=FLAGS.learning_rate, bs=FLAGS.batch_size, ep=FLAGS.max_epochs,
               eval_freq=FLAGS.eval_freq, opt=FLAGS.optimizer, num_workers=FLAGS.cores,
               use_gpu=(FLAGS.gpu == 1), gpu_id=FLAGS.gpu_id,
-              data_dir=FLAGS.data_dir, logr=logger, model=FLAGS.network,
+              data_dir=FLAGS.data_dir, logr=logger,
+              model=FLAGS.network, ref_AR_path=FLAGS.ref_ar,
               model_save_dir=FLAGS.model_save_dir, train_type=FLAGS.train_type,
               metrics_threshold=torch.Tensor([FLAGS.metrics_threshold]),
               total_H=FLAGS.hours, start_H=FLAGS.start_hour, hidden_dim=FLAGS.hidden_dim,

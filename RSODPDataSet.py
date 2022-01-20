@@ -46,20 +46,25 @@ class RSODPDataSetEntity(DGLDataset):
         # sample: for each time slot: (fg, bg, gg, V)
         cur_sample_inputs = {}
         cur_sample_GDs = {}
-        for temp_feat in Config.TEMP_FEAT_NAMES:
-            temp_feat_sample_inputs = []
+        for temp_feat in Config.ALL_TEMP_FEAT_NAMES:
+            # No graph data for 'Stext' (this is for LSTNet)
+            if temp_feat != Config.LSTNET_TEMP_FEAT:
+                temp_feat_sample_inputs = []
             temp_feat_sample_GDs = []
             for ts in cur_sample_ref['record'][temp_feat]:
                 GDVQ_ts = np.load(os.path.join(self.data_dir, str(ts), 'GDVQ.npy'), allow_pickle=True).item()
                 G_ts, D_ts, V_ts = torch.from_numpy(GDVQ_ts['G']), torch.from_numpy(GDVQ_ts['D']), torch.from_numpy(GDVQ_ts['V'])
-                (fg_ts, bg_ts,), _ = dgl.load_graphs(os.path.join(self.data_dir, str(ts), 'FBGraphs.dgl'))
-                (gg_ts,), _ = dgl.load_graphs(os.path.join(self.data_dir, 'GeoGraph.dgl'))
-                fg_ts.ndata['v'] = V_ts
-                bg_ts.ndata['v'] = V_ts
-                gg_ts.ndata['v'] = V_ts
-                temp_feat_sample_inputs.append((fg_ts, bg_ts, gg_ts))
+                if temp_feat != Config.LSTNET_TEMP_FEAT:
+                    (fg_ts, bg_ts,), _ = dgl.load_graphs(os.path.join(self.data_dir, str(ts), 'FBGraphs.dgl'))
+                    (gg_ts,), _ = dgl.load_graphs(os.path.join(self.data_dir, 'GeoGraph.dgl'))
+                    fg_ts.ndata['v'] = V_ts
+                    bg_ts.ndata['v'] = V_ts
+                    gg_ts.ndata['v'] = V_ts
+                    temp_feat_sample_inputs.append((fg_ts, bg_ts, gg_ts))
                 temp_feat_sample_GDs.append((D_ts, G_ts))
-            cur_sample_inputs[temp_feat] = temp_feat_sample_inputs
+            # No graph data for 'Stext' (this is for LSTNet)
+            if temp_feat != Config.LSTNET_TEMP_FEAT:
+                cur_sample_inputs[temp_feat] = temp_feat_sample_inputs
             cur_sample_GDs[temp_feat] = temp_feat_sample_GDs
 
         cur_sample_data = {
@@ -108,6 +113,7 @@ class RSODPDataSet:
                 # Omit incomplete sample
                 continue
             St = [int(cur_ts - pm1) for pm1 in range(self.his_rec_num)]  # Tendency: T + 1 - p, p in [1, P]
+            Stext = [int(cur_ts - pm1) for pm1 in range(int(2 * self.his_rec_num))]  # Tendency Extra: T + 1 - p, p in [1, 2P], for LSTNet
             Sp = [int(cur_ts + 1 - self.time_slot_num_per_day * (pm1 + 1)) for pm1 in range(self.his_rec_num)]  # Periodicty: T + 1 - lp, p in [1, P]
             Stpm = [(n - 1) for n in Sp]  # Misc-: T - lp, p in [1, P]
             Stpp = [(n + 1) for n in Sp]  # Misc+: T + 2 - lp, p in [1, P]
@@ -117,7 +123,8 @@ class RSODPDataSet:
                     'St': St,
                     'Sp': Sp,
                     'Stpm': Stpm,
-                    'Stpp': Stpp
+                    'Stpp': Stpp,
+                    'Stext': Stext
                 }
             }
             total_list.append(cur_sample)
@@ -142,7 +149,7 @@ def testSamplingSpeed(dataset: DGLDataset, batch_size: int, shuffle: bool, tag: 
     time0 = time.time()
     for i, batch in enumerate(dataloader):
         record, query, target_G, target_D = batch['record'], batch['query'], batch['target_G'], batch['target_D']
-        sys.stdout.write('\r{} Set - Batch No. {}/{} with time used(s): {}'.format(tag, i+1, len(dataloader), time.time() - time0))
+        sys.stdout.write('\r%s Set - Batch No. %d/%d with time used(s): %-25s' % (tag, i+1, len(dataloader), str(time.time() - time0)))
         sys.stdout.flush()
         if i == 0:
             test = batch  # For debugging, set a breakpoint here

@@ -42,13 +42,31 @@ Our model is named as **GallatExt** since it is an extension version of [Gallat]
 
 Historical Average is the very baseline method which computes the average of the historical demands from the previous time slots. For improvement, we further consider the four temporal aspects in our Temporal Attention Layer design while calculate the average of all these values directly.
 
+#### AR (Auto-Regressive)
+
+xxx
+
+<br>
+
+### Other Models
+
 #### Gallat
 
 Our model is extended from [Gallat](https://arxiv.org/pdf/2101.00752.pdf) (Graph prediction with all attention), so it is considered as an important baseline model for comparison.
 
-#### <img src="https://render.githubusercontent.com/render/math?math=Gallat^{%2b}">
+#### LSTNet
 
-We combine the original Gallat with our idea of fine-tuning in the Transferring Layer since the original Gallat does not appear to achieve better results than the baseline HA.
+xxx
+
+#### GCRN
+
+xxx
+
+#### GEML
+
+xxx
+
+<br>
 
 ### Variant
 
@@ -60,6 +78,10 @@ This version inherits the design of the transferring layer in Gallat, meaning th
 
 This version uses concatenation as the aggregation scheme in both spatial and temporal layer (Default aggregation scheme for GallatExt is average).
 
+#### GallatExt-3
+
+xxx
+
 <br>
 
 ## V. Experiment
@@ -70,9 +92,9 @@ For most papers focusing on this area, there are three classic metrics for evalu
 
 <p align="center"><img src="https://render.githubusercontent.com/render/math?math=RMSE(y, \hat{y}) = \sqrt{\frac{1}{z}\sum_{i=1}^{z}(y - \hat{y})^2}"></p>
 
-<p align="center"><img src="https://render.githubusercontent.com/render/math?math=MAPE(y, \hat{y}) = \frac{1}{z}\sum_{i=1}^{z}|\frac{y - \hat{y}}{y + 1}|"></p>
+<p align="center"><img src="https://render.githubusercontent.com/render/math?math=MAPE(y, \hat{y}) = \frac{1}{z}\sum_{i=1}^{z}|\frac{y - \hat{y}}{y %2B \epsilon}|"></p>
 
 <p align="center"><img src="https://render.githubusercontent.com/render/math?math=MAE(y, \hat{y}) = \frac{1}{z}\sum_{i=1}^{z}|y - \hat{y}|"></p>
 
-In these formulas, <img src="https://render.githubusercontent.com/render/math?math=z"> represents the number of samples. <img src="https://render.githubusercontent.com/render/math?math=y_i"> and <img src="https://render.githubusercontent.com/render/math?math=\hat{y}_i"> represent the ground truth value and the predicted value respectively.
+In these formulas, <img src="https://render.githubusercontent.com/render/math?math=z"> represents the number of samples. <img src="https://render.githubusercontent.com/render/math?math=y_i"> and <img src="https://render.githubusercontent.com/render/math?math=\hat{y}_i"> represent the ground truth value and the predicted value respectively. <img src="https://render.githubusercontent.com/render/math?math=\epsilon"> is a small additive constant value to avoid the denominator to being zero.
 

@@ -14,6 +14,8 @@ import pandas as pd
 import torch
 import multiprocessing
 
+from tqdm import tqdm
+
 stderr = sys.stderr
 sys.stderr = open(os.devnull, 'w')
 import dgl
@@ -223,7 +225,7 @@ def oneHotEncode(val, valList: list):
 
 def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_nodes, grid_info):
     curH = i + 1
-    print('-> Splitting hour-wise data No.{}/{}.'.format(curH, totalH))
+    # print('-> Splitting hour-wise data No.{}/{}.'.format(curH, totalH))
 
     # Folder for this split of data
     curDir = os.path.join(folder, str(curH))
@@ -327,7 +329,7 @@ def minMaxScale(x, minVal, maxVal):
 
 def normDnV(i, totalH, folder, inD_min, inD_max, outD_min, outD_max):
     curH = i + 1
-    print('-> Normalizing Ds in Vs for data No.{}/{}.'.format(curH, totalH))
+    # print('-> Normalizing Ds in Vs for data No.{}/{}.'.format(curH, totalH))
     GDVQ = np.load(os.path.join(folder, str(curH), 'GDVQ.npy'), allow_pickle=True).item()
     curV = GDVQ['V']
     for ni in range(len(curV)):
@@ -366,14 +368,20 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_worke
         json.dump(req_info, f)
     print('requests info saved to {}'.format(req_info_path))
 
+    print('-> Splitting %d hour-wise data.' % totalH)
     pool = multiprocessing.Pool(processes=num_workers)
+    pbar_req_data_tasks = tqdm(total=totalH)
+
+    def pbar_req_data_tasks_update(*args):
+        pbar_req_data_tasks.update()
+
     for i in range(totalH):
         # Filter data
         mask = ((df['request time'] >= lowT) & (df['request time'] < upT)).values
         df_split = df.iloc[mask]
 
-        # Handle data TODO:modify with tqdm
-        pool.apply_async(handleRequestData, args=(i, totalH, folder, lowT, df_split, export_requests, grid_nodes, grid_info))
+        # Handle data
+        pool.apply_async(handleRequestData, args=(i, totalH, folder, lowT, df_split, export_requests, grid_nodes, grid_info), callback=pbar_req_data_tasks_update)
         # handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_nodes, grid_info)    # DEBUG
 
         lowT += pd.Timedelta(hours=1)
@@ -381,16 +389,14 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_worke
 
     pool.close()
     pool.join()
-    print()
 
     # Normalize Ds in the feature vectors
     # 1. Get min max
     inD_min, outD_min = float('inf'), float('inf')
     inD_max, outD_max = -1, -1
-    for i in range(totalH):
+    print('\n-> Scanning %d data to calculate min & max.' % totalH)
+    for i in tqdm(range(totalH)):
         curH = i + 1
-        sys.stdout.write('\r-> Scanning data No.{}/{} for to calculate min & max.'.format(curH, totalH))
-        sys.stdout.flush()
         GDVQ = np.load(os.path.join(folder, str(curH), 'GDVQ.npy'), allow_pickle=True).item()
         inD_min = min(GDVQ['inD_min'], inD_min)
         outD_min = min(GDVQ['outD_min'], outD_min)
@@ -401,18 +407,24 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_worke
         del GDVQ['outD_min']
         del GDVQ['outD_max']
         np.save(os.path.join(folder, str(curH), 'GDVQ.npy'), GDVQ)
-    print("\ninD_min = %.2f, inD_max = %.2f\noutD_min = %.2f, outD_max = %.2f\n" % (
+    print("\ninD_min = %.2f, inD_max = %.2f\noutD_min = %.2f, outD_max = %.2f" % (
         inD_min, inD_max, outD_min, outD_max
     ))
     # 2. Normalize Ds in Vs
+    print('-> Normalizing Ds in Vs for %d data.' % totalH)
     pool = multiprocessing.Pool(processes=num_workers)
-    for i in range(totalH):     # TODO:modify with tqdm
-        pool.apply_async(normDnV, args=(i, totalH, folder, inD_min, inD_max, outD_min, outD_max))
+    pbar_norm_tasks = tqdm(total=totalH)
+
+    def pbar_norm_tasks_update(*args):
+        pbar_norm_tasks.update()
+
+    for i in range(totalH):
+        pool.apply_async(normDnV, args=(i, totalH, folder, inD_min, inD_max, outD_min, outD_max), callback=pbar_norm_tasks_update)
 
     pool.close()
     pool.join()
 
-    print('Data splitting complete.')
+    print('\nData splitting complete.')
 
 
 if __name__ == '__main__':

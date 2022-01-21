@@ -104,14 +104,14 @@ def getGridInfo(minLat, maxLat, minLng, maxLng, refGridW=2.5, refGridH=2.5):
     grid_info['gridLng'] = (grid_info['maxLng'] - grid_info['minLng']) / grid_info['lngGridNum']
 
     grid_info['gridNum'] = grid_info['latGridNum'] * grid_info['lngGridNum']
-    print('Grid info retrieved.')
+    print('-> Grid info retrieved.')
     return grid_info
 
 
 def saveGridInfo(grid_info, fPath):
     with open(fPath, 'w') as f:
         json.dump(grid_info, f)
-    print('grid_info saved to {}'.format(fPath))
+    print('-> grid_info saved to {}'.format(fPath))
 
 
 def makeGridNodes(grid_info):
@@ -129,7 +129,7 @@ def makeGridNodes(grid_info):
             grid_nodes.append((midLat, midLng))
             midLng += grid_info['gridLng']
         midLat -= grid_info['gridLat']
-    print('Grid nodes generated.')
+    print('-> Grid nodes generated.')
     return grid_nodes
 
 
@@ -184,13 +184,13 @@ def getGeoGraph(grid_nodes, L):
 
     GeoGraph = matOD2G(mat=TcMat, oList=RSrcList, dList=RDstList, nGNodes=len(grid_nodes))
 
-    print('Geographical info generated.')
+    print('-> Geographical info generated.')
     return GeoGraph
 
 
 def saveGeoGraph(geoG, fPath):
     dgl.save_graphs(fPath, geoG)
-    print('Geographical info saved to {}'.format(fPath))
+    print('-> Geographical info saved to {}'.format(fPath))
 
 
 def inWhichGrid(coord, grid_info):
@@ -355,7 +355,7 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_worke
     minT, maxT = df['request time'].min(), df['request time'].max()
     totalH = round((maxT - minT) / pd.Timedelta(hours=1))
     lowT, upT = minT, minT + pd.Timedelta(hours=1)
-    print('Dataframe prepared. Total hours = {}.'.format(totalH))
+    print('-> Dataframe prepared. Total hours = {}.'.format(totalH))
 
     req_info = {
         'name': path2FileNameWithoutExt(fPath),
@@ -366,7 +366,7 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_worke
     req_info_path = os.path.join(folder, 'req_info.json')
     with open(req_info_path, 'w') as f:
         json.dump(req_info, f)
-    print('requests info saved to {}'.format(req_info_path))
+    print('-> requests info saved to {}'.format(req_info_path))
 
     print('-> Splitting %d hour-wise data.' % totalH)
     pool = multiprocessing.Pool(processes=num_workers)
@@ -389,6 +389,7 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_worke
 
     pool.close()
     pool.join()
+    pbar_req_data_tasks.close()
 
     # Normalize Ds in the feature vectors
     # 1. Get min max
@@ -423,6 +424,7 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_worke
 
     pool.close()
     pool.join()
+    pbar_norm_tasks.close()
 
     print('\nData splitting complete.')
 

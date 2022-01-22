@@ -143,23 +143,25 @@ def pushGraphEdge(gSrc: list, gDst: list, wList, src, dst, weight):
         return gSrc, gDst
 
 
-def matOD2G(mat, oList: list, dList: list, nGNodes):
-    # pre weights
-    matSum = np.sum(mat, axis=0)
-    for nj in range(nGNodes):
-        if matSum[nj] == 0:
-            continue
-        for ni in range(nGNodes):
-            mat[ni][nj] /= matSum[nj]
-
-    # Transform node data mat to edge data edges
-    edges = []
-    for i in range(len(oList)):
-        edges.append([mat[oList[i]][dList[i]]])
-
+def matOD2G(mat, oList: list, dList: list, nGNodes, hasPreWeights=True):
     # Create DGL Graph
     graph = dgl.graph((oList, dList), num_nodes=nGNodes)
-    graph.edata['pre_w'] = torch.Tensor(edges)
+
+    if hasPreWeights:
+        # pre weights
+        matSum = np.sum(mat, axis=0)
+        for nj in range(nGNodes):
+            if matSum[nj] == 0:
+                continue
+            for ni in range(nGNodes):
+                mat[ni][nj] /= matSum[nj]
+
+        # Transform node data mat to edge data edges
+        edges = []
+        for i in range(len(oList)):
+            edges.append([mat[oList[i]][dList[i]]])
+
+        graph.edata['pre_w'] = torch.Tensor(edges)
 
     return graph
 
@@ -182,7 +184,7 @@ def getGeoGraph(grid_nodes, L):
                 RSrcList, RDstList = pushGraphEdge(RSrcList, RDstList, None, j, i, None)
                 TcMat[j][i] = 1 / (adjacency_matrix[i][j] + EPSILON)
 
-    GeoGraph = matOD2G(mat=TcMat, oList=RSrcList, dList=RDstList, nGNodes=len(grid_nodes))
+    GeoGraph = matOD2G(mat=TcMat, oList=RSrcList, dList=RDstList, nGNodes=len(grid_nodes), hasPreWeights=True)
 
     print('-> Geographical info generated.')
     return GeoGraph
@@ -207,9 +209,9 @@ def inWhichGrid(coord, grid_info):
     return row, col, gridID
 
 
-def constructReqMat(df, grid_info):
+def constructReqMat(df, grid_info, pbar=False):
     request_matrix = np.zeros((grid_info['gridNum'], grid_info['gridNum']))
-    for df_i in range(len(df)):
+    for df_i in (tqdm(range(len(df))) if pbar else range(len(df))):
         cur_data = df.iloc[df_i]
         src_row, src_col, src_id = inWhichGrid((cur_data['src lat'], cur_data['src lng']), grid_info)
         dst_row, dst_col, dst_id = inWhichGrid((cur_data['dst lat'], cur_data['dst lng']), grid_info)
@@ -233,9 +235,49 @@ def oneHotEncode(val, valList: list):
     return [1 if val == valInList else 0 for valInList in valList]
 
 
-def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_nodes, grid_info):
+def constructFBGraph(request_matrix, num_grid_nodes, mix=False):
+    if mix:     # Forward & Backward mixed together (For GEML)
+        P_src_list, P_dst_list = [], []
+
+        for rmi in range(num_grid_nodes):
+            for rmj in range(num_grid_nodes):
+                # rmi -> rmj, rmj is rmi's forward neighbor, rmi is rmj's backward neighbor
+                # Forward Neighborhood: features of rmj should propagate to rmi, thus rmj->rmi
+                # Backward Neighborhood: features of rmi should propagate to rmj, thus rmi->rmj
+                # Mixed Neighborhood: rmj is rmi's neighbor either rmi->rmj or rmj->rmi
+                if request_matrix[rmi][rmj] > 0 or request_matrix[rmj][rmi] > 0:
+                    P_src_list, P_dst_list = pushGraphEdge(P_src_list, P_dst_list, None, rmj, rmi, None)
+
+        FBN_graph = matOD2G(mat=None, oList=P_src_list, dList=P_dst_list, nGNodes=num_grid_nodes, hasPreWeights=False)
+        return FBN_graph
+    else:
+        Pa_src_list, Pa_dst_list = [], []   # Psi & a
+        Pb_src_list, Pb_dst_list = [], []   # Phi & b
+        Pa_mat = np.zeros((num_grid_nodes, num_grid_nodes))
+        Pb_mat = np.zeros((num_grid_nodes, num_grid_nodes))
+
+        for rmi in range(num_grid_nodes):
+            for rmj in range(num_grid_nodes):
+                # rmi -> rmj, rmj is rmi's forward neighbor, rmi is rmj's backward neighbor
+                # Forward Neighborhood: features of rmj should propagate to rmi, thus rmj->rmi
+                # Backward Neighborhood: features of rmi should propagate to rmj, thus rmi->rmj
+                # Mixed Neighborhood: rmj is rmi's neighbor either rmi->rmj or rmj->rmi
+                if request_matrix[rmi][rmj] > 0:
+                    Pa_src_list, Pa_dst_list = pushGraphEdge(Pa_src_list, Pa_dst_list, None, rmj, rmi, None)
+                    Pa_mat[rmj][rmi] = request_matrix[rmi][rmj]
+                    Pb_src_list, Pb_dst_list = pushGraphEdge(Pb_src_list, Pb_dst_list, None, rmi, rmj, None)
+                    Pb_mat[rmi][rmj] = request_matrix[rmi][rmj]
+
+        FN_graph = matOD2G(mat=Pa_mat, oList=Pa_src_list, dList=Pa_dst_list, nGNodes=num_grid_nodes, hasPreWeights=True)
+        BN_graph = matOD2G(mat=Pb_mat, oList=Pb_src_list, dList=Pb_dst_list, nGNodes=num_grid_nodes, hasPreWeights=True)
+        return FN_graph, BN_graph
+
+
+def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_info):
     curH = i + 1
     # print('-> Splitting hour-wise data No.{}/{}.'.format(curH, totalH))
+
+    num_grid_nodes = grid_info['gridNum']
 
     # Folder for this split of data
     curDir = os.path.join(folder, str(curH))
@@ -259,7 +301,7 @@ def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_n
         df_split.to_csv(os.path.join(curDir, 'request.csv'), index=False)
 
     # Get request matrix G
-    request_matrix = constructReqMat(df_split, grid_info)
+    request_matrix = constructReqMat(df_split, grid_info, pbar=False)
     GDVQ['G'] = request_matrix.astype(np.float32)
 
     # Get Feature Matrix V
@@ -275,13 +317,13 @@ def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_n
 
     feature_vectors = []
     query_feature_vectors = []
-    for vi in range(len(grid_nodes)):
+    for vi in range(num_grid_nodes):
         viRow, viCol = ID2Coord(vi, grid_info)
         # query vector
         query_feature_vector = oneHotDOW + oneHotDTOW + oneHotHOD + oneHotPOD + [
             viRow / (grid_info['latGridNum'] - 1),
             viCol / (grid_info['lngGridNum'] - 1),
-            vi / (len(grid_nodes) - 1)
+            vi / (num_grid_nodes - 1)
         ]
         query_feature_vectors.append(query_feature_vector)
         # feature vector: Note that Ds are not yet normalized
@@ -299,25 +341,7 @@ def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_n
     np.save(os.path.join(curDir, 'GDVQ.npy'), GDVQ)
 
     # Get Psi (Forward Neighborhood) and Phi (Backward Neighborhood)
-    PaSrcList, PaDstList = [], []  # Psi & a
-    PbSrcList, PbDstList = [], []  # Phi & b
-    PaMat = np.zeros((len(grid_nodes), len(grid_nodes)))
-    PbMat = np.zeros((len(grid_nodes), len(grid_nodes)))
-    for rmi in range(len(grid_nodes)):
-        for rmj in range(len(grid_nodes)):
-            if request_matrix[rmi][rmj] > 0:  # In this case, rmi == rmj is valid
-                # rmi -> rmj, rmj is rmi's forward neighbor, rmi is rmj's backward neighbor
-                # forward neighborhood: features of rmj should propagate to rmi, thus rmj->rmi
-                # backward neighborhood: features of rmi should propagate to rmj, thus rmi->rmj
-                PaSrcList, PaDstList = pushGraphEdge(PaSrcList, PaDstList, None, rmj, rmi, None)
-                PaMat[rmj][rmi] = request_matrix[rmi][rmj] + EPSILON
-                PbSrcList, PbDstList = pushGraphEdge(PbSrcList, PbDstList, None, rmi, rmj, None)
-                PbMat[rmi][rmj] = request_matrix[rmi][rmj] + EPSILON
-
-    FNGraph = matOD2G(mat=PaMat, oList=PaSrcList, dList=PaDstList, nGNodes=len(grid_nodes))
-    BNGraph = matOD2G(mat=PbMat, oList=PbSrcList, dList=PbDstList, nGNodes=len(grid_nodes))
-
-    # Save two neighborhood graphs
+    FNGraph, BNGraph = constructFBGraph(request_matrix, num_grid_nodes, mix=False)
     dgl.save_graphs(os.path.join(curDir, 'FBGraphs.dgl'), [FNGraph, BNGraph])
 
 
@@ -359,8 +383,9 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_worke
     minT, maxT = df['request time'].min(), df['request time'].max()
     totalH = round((maxT - minT) / pd.Timedelta(hours=1))
     lowT, upT = minT, minT + pd.Timedelta(hours=1)
-    print('-> Dataframe prepared. Total hours = {}.'.format(totalH))
+    print('-> Dataframe prepared. Total hours = %s.' % totalH)
 
+    # Save req_info
     req_info = {
         'name': path2FileNameWithoutExt(fPath),
         'minT': minT.strftime(DATE_FORMAT),
@@ -370,8 +395,24 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_worke
     req_info_path = os.path.join(folder, 'req_info.json')
     with open(req_info_path, 'w') as f:
         json.dump(req_info, f)
-    print('-> requests info saved to {}'.format(req_info_path))
+    print('-> requests info saved to %s' % req_info_path)
 
+    # Unity FBGraph
+    print('-> Calculating overall request matrix...')
+    overall_request_matrix = constructReqMat(df, grid_info, pbar=True)
+    print('\n-> Overall request matrix calculated.')
+
+    overall_FN_graph, overall_BN_graph = constructFBGraph(overall_request_matrix, num_grid_nodes=grid_info['gridNum'], mix=False)
+    unified_FBN_graphs_path = os.path.join(folder, 'FBGraphs.dgl')
+    dgl.save_graphs(unified_FBN_graphs_path, [overall_FN_graph, overall_BN_graph])
+    print('-> Unified Semantic Neighborhood graphs saved to %s' % unified_FBN_graphs_path)
+
+    overall_mixFBN_graph = constructFBGraph(overall_request_matrix, num_grid_nodes=grid_info['gridNum'], mix=True)
+    unified_mixFBN_graph_path = os.path.join(folder, 'FBGraphMix.dgl')
+    dgl.save_graphs(unified_mixFBN_graph_path, overall_mixFBN_graph)
+    print('-> Unified Semantic Neighborhood graph (mixed for GEML) saved to %s' % unified_mixFBN_graph_path)
+
+    # Split hour-wise data
     print('-> Splitting %d hour-wise data.' % totalH)
     pool = multiprocessing.Pool(processes=num_workers)
     pbar_req_data_tasks = tqdm(total=totalH)
@@ -385,8 +426,8 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_worke
         df_split = df.iloc[mask]
 
         # Handle data
-        pool.apply_async(handleRequestData, args=(i, totalH, folder, lowT, df_split, export_requests, grid_nodes, grid_info), callback=pbar_req_data_tasks_update)
-        # handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_nodes, grid_info)    # DEBUG
+        pool.apply_async(handleRequestData, args=(i, totalH, folder, lowT, df_split, export_requests, grid_info), callback=pbar_req_data_tasks_update)
+        # handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_info)    # DEBUG
 
         lowT += pd.Timedelta(hours=1)
         upT += pd.Timedelta(hours=1)

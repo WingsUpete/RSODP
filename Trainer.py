@@ -196,7 +196,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
         total_train_time = (time_end_train - time_start_train)
         train_time_per_sample = total_train_time / len(dataset.train_set)
         logr.log('Training Round %d: loss = %.6f, time_cost = %.4f sec (%.4f sec per sample), RMSE-%d = %.4f, MAPE-%d = %.4f, MAE-%d = %.4f\n' %
-                 (epoch_i, train_loss, total_train_time, train_time_per_sample, metrics_threshold_val, train_metrics_res[task]['RMSE']['val'], metrics_threshold_val, train_metrics_res[task]['MAPE']['val'], metrics_threshold_val, train_metrics_res[task]['MAE']['val']))
+                 (epoch_i + 1, train_loss, total_train_time, train_time_per_sample, metrics_threshold_val, train_metrics_res[task]['RMSE']['val'], metrics_threshold_val, train_metrics_res[task]['MAPE']['val'], metrics_threshold_val, train_metrics_res[task]['MAE']['val']))
 
         # eval_freq: Evaluate on validation set
         if (epoch_i + 1) % eval_freq == 0:

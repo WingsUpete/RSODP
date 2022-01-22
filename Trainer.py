@@ -71,11 +71,11 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     else:
         logr.log('> Initializing the Training Model: {}, Train type = {}\n'.format(model, train_type))
         if model == 'Gallat':
-            net = Gallat(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim)
+            net = Gallat(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_dim=3)
         elif model == 'GallatExt':
-            net = GallatExt(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_heads=Config.NUM_HEADS_DEFAULT)
+            net = GallatExt(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_heads=Config.NUM_HEADS_DEFAULT, num_dim=3)
         elif model == 'GallatExtFull':
-            net = GallatExtFull(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_heads=Config.NUM_HEADS_DEFAULT)
+            net = GallatExtFull(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_heads=Config.NUM_HEADS_DEFAULT, num_dim=3)
         elif model == 'AR':
             net = AR(p=Config.HISTORICAL_RECORDS_NUM_DEFAULT)
         elif model == 'LSTNet':

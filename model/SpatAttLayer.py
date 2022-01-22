@@ -1,3 +1,5 @@
+import sys
+
 import numpy as np
 import dgl
 import torch
@@ -8,7 +10,7 @@ from .PwGaANLayer import MultiHeadPwGaANLayer
 
 
 class SpatAttLayer(nn.Module):
-    def __init__(self, feat_dim, hidden_dim, num_heads, gate=False, merge='mean'):
+    def __init__(self, feat_dim, hidden_dim, num_heads, gate=False, merge='mean', num_dim=3):
         super(SpatAttLayer, self).__init__()
         self.feat_dim = feat_dim
         self.hidden_dim = hidden_dim
@@ -16,17 +18,21 @@ class SpatAttLayer(nn.Module):
         self.gate = gate
         self.merge = merge
 
-        self.fwdSpatAttLayer = MultiHeadPwGaANLayer(self.feat_dim, self.hidden_dim, self.num_heads, gate=self.gate, merge=self.merge)
-        self.bwdSpatAttLayer = MultiHeadPwGaANLayer(self.feat_dim, self.hidden_dim, self.num_heads, gate=self.gate, merge=self.merge)
-        self.geoSpatAttLayer = MultiHeadPwGaANLayer(self.feat_dim, self.hidden_dim, self.num_heads, gate=self.gate, merge=self.merge)
+        self.num_dim = num_dim
+
+        self.dimSpatAttLayers = nn.ModuleList([
+            MultiHeadPwGaANLayer(self.feat_dim, self.hidden_dim, self.num_heads, gate=self.gate, merge=self.merge)
+            for _ in range(self.num_dim)
+        ])
+
         self.proj_fc = nn.Linear(self.feat_dim, self.hidden_dim, bias=False)
 
         # BatchNorm
-        self.bn = nn.BatchNorm1d(num_features=self.hidden_dim * 4)
+        self.bn = nn.BatchNorm1d(num_features=int(self.hidden_dim * (self.num_dim + 1)))
         if self.merge == 'mean':
-            self.bn = nn.BatchNorm1d(num_features=self.hidden_dim * 4)
+            self.bn = nn.BatchNorm1d(num_features=int(self.hidden_dim * (self.num_dim + 1)))
         elif self.merge == 'cat':
-            self.bn = nn.BatchNorm1d(num_features=self.hidden_dim * (3 * self.num_heads + 1))
+            self.bn = nn.BatchNorm1d(num_features=int(self.hidden_dim * (self.num_dim * self.num_heads + 1)))
 
         self.reset_parameters()
 
@@ -35,32 +41,30 @@ class SpatAttLayer(nn.Module):
         gain = nn.init.calculate_gain('leaky_relu')
         nn.init.xavier_normal_(self.proj_fc.weight, gain=gain)
 
-    def forward(self, fg: dgl.DGLGraph, bg: dgl.DGLGraph, gg: dgl.DGLGraph):
-        feat = fg.ndata['v']
+    def forward(self, gs: list):
+        if len(gs) != self.num_dim:
+            sys.stderr.write('input has %d graphs but %d are set initially.\n' % (len(gs), self.num_dim))
+            exit(-27)
+
+        feat = gs[-1].ndata['v']
         feat = F.dropout(feat, 0.1)
-        fg.ndata['v'] = feat
-        bg.ndata['v'] = feat
-        fg.ndata['v'] = feat
+        for i in range(len(gs)):
+            gs[i].ndata['v'] = feat
 
         proj_feat = self.proj_fc(feat)
         del feat
 
-        fg.ndata['proj_z'] = proj_feat
-        bg.ndata['proj_z'] = proj_feat
-        gg.ndata['proj_z'] = proj_feat
+        for i in range(len(gs)):
+            gs[i].ndata['proj_z'] = proj_feat
 
-        out_proj_feat = proj_feat.reshape(fg.batch_size, -1, self.hidden_dim)
+        out_proj_feat = proj_feat.reshape(gs[-1].batch_size, -1, self.hidden_dim)
         del proj_feat
 
-        h_fwd = self.fwdSpatAttLayer(fg)
-        h_bwd = self.bwdSpatAttLayer(bg)
-        h_geo = self.geoSpatAttLayer(gg)
+        hs = [self.dimSpatAttLayers[i](gs[i]) for i in range(len(gs))]
 
-        h = torch.cat([out_proj_feat, h_fwd, h_bwd, h_geo], dim=-1)
+        h = torch.cat([out_proj_feat] + hs, dim=-1)
         del out_proj_feat
-        del h_fwd
-        del h_bwd
-        del h_geo
+        del hs
 
         normH = self.bn(torch.transpose(h, -2, -1))
         reshapedH = torch.transpose(normH, -2, -1)
@@ -78,11 +82,11 @@ if __name__ == '__main__':
     (dgg,), _ = dgl.load_graphs('test/GeoGraph.dgl')
     V = torch.from_numpy(V)
 
-    spatAttLayer = SpatAttLayer(feat_dim=7, hidden_dim=16, num_heads=3, gate=True)
+    spatAttLayer = SpatAttLayer(feat_dim=43, hidden_dim=16, num_heads=3, gate=True, num_dim=3)
     print(V, V.shape)
     dfg.ndata['v'] = V
     dbg.ndata['v'] = V
     dgg.ndata['v'] = V
-    out = spatAttLayer(dfg, dbg, dgg)
+    out = spatAttLayer([dfg, dbg, dgg])
     print(out, out.shape)
     test = out.detach().numpy()

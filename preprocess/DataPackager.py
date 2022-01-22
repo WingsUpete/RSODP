@@ -209,9 +209,9 @@ def inWhichGrid(coord, grid_info):
     return row, col, gridID
 
 
-def constructReqMat(df, grid_info, pbar=False):
+def constructReqMat(df, grid_info):
     request_matrix = np.zeros((grid_info['gridNum'], grid_info['gridNum']))
-    for df_i in (tqdm(range(len(df))) if pbar else range(len(df))):
+    for df_i in range(len(df)):
         cur_data = df.iloc[df_i]
         src_row, src_col, src_id = inWhichGrid((cur_data['src lat'], cur_data['src lng']), grid_info)
         dst_row, dst_col, dst_id = inWhichGrid((cur_data['dst lat'], cur_data['dst lng']), grid_info)
@@ -301,7 +301,7 @@ def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_i
         df_split.to_csv(os.path.join(curDir, 'request.csv'), index=False)
 
     # Get request matrix G
-    request_matrix = constructReqMat(df_split, grid_info, pbar=False)
+    request_matrix = constructReqMat(df_split, grid_info)
     GDVQ['G'] = request_matrix.astype(np.float32)
 
     # Get Feature Matrix V
@@ -343,6 +343,8 @@ def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_i
     # Get Psi (Forward Neighborhood) and Phi (Backward Neighborhood)
     FNGraph, BNGraph = constructFBGraph(request_matrix, num_grid_nodes, mix=False)
     dgl.save_graphs(os.path.join(curDir, 'FBGraphs.dgl'), [FNGraph, BNGraph])
+
+    return request_matrix
 
 
 def minMaxScale(x, minVal, maxVal):
@@ -397,27 +399,15 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_worke
         json.dump(req_info, f)
     print('-> requests info saved to %s' % req_info_path)
 
-    # Unity FBGraph
-    print('-> Calculating overall request matrix...')
-    overall_request_matrix = constructReqMat(df, grid_info, pbar=True)
-    print('\n-> Overall request matrix calculated.')
-
-    overall_FN_graph, overall_BN_graph = constructFBGraph(overall_request_matrix, num_grid_nodes=grid_info['gridNum'], mix=False)
-    unified_FBN_graphs_path = os.path.join(folder, 'FBGraphs.dgl')
-    dgl.save_graphs(unified_FBN_graphs_path, [overall_FN_graph, overall_BN_graph])
-    print('-> Unified Semantic Neighborhood graphs saved to %s' % unified_FBN_graphs_path)
-
-    overall_mixFBN_graph = constructFBGraph(overall_request_matrix, num_grid_nodes=grid_info['gridNum'], mix=True)
-    unified_mixFBN_graph_path = os.path.join(folder, 'FBGraphMix.dgl')
-    dgl.save_graphs(unified_mixFBN_graph_path, overall_mixFBN_graph)
-    print('-> Unified Semantic Neighborhood graph (mixed for GEML) saved to %s' % unified_mixFBN_graph_path)
+    request_matrices = []
 
     # Split hour-wise data
     print('-> Splitting %d hour-wise data.' % totalH)
     pool = multiprocessing.Pool(processes=num_workers)
     pbar_req_data_tasks = tqdm(total=totalH)
 
-    def pbar_req_data_tasks_update(*args):
+    def pbar_req_data_tasks_update(res):
+        request_matrices.append(res)
         pbar_req_data_tasks.update()
 
     for i in range(totalH):
@@ -461,7 +451,7 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_worke
     pool = multiprocessing.Pool(processes=num_workers)
     pbar_norm_tasks = tqdm(total=totalH)
 
-    def pbar_norm_tasks_update(*args):
+    def pbar_norm_tasks_update(res):
         pbar_norm_tasks.update()
 
     for i in range(totalH):
@@ -471,7 +461,21 @@ def splitData(fPath, folder, grid_nodes, grid_info, export_requests=1, num_worke
     pool.join()
     pbar_norm_tasks.close()
 
-    print('\nData splitting complete.')
+    # Unity FBGraph
+    overall_request_matrix = sum(request_matrices)
+    print('\n-> Overall request matrix calculated.')
+
+    overall_FN_graph, overall_BN_graph = constructFBGraph(overall_request_matrix, num_grid_nodes=grid_info['gridNum'], mix=False)
+    unified_FBN_graphs_path = os.path.join(folder, 'FBGraphs.dgl')
+    dgl.save_graphs(unified_FBN_graphs_path, [overall_FN_graph, overall_BN_graph])
+    print('-> Unified Semantic Neighborhood graphs saved to %s' % unified_FBN_graphs_path)
+
+    overall_mixFBN_graph = constructFBGraph(overall_request_matrix, num_grid_nodes=grid_info['gridNum'], mix=True)
+    unified_mixFBN_graph_path = os.path.join(folder, 'FBGraphMix.dgl')
+    dgl.save_graphs(unified_mixFBN_graph_path, overall_mixFBN_graph)
+    print('-> Unified Semantic Neighborhood graph (mixed for GEML) saved to %s' % unified_mixFBN_graph_path)
+
+    print('Data splitting complete.')
 
 
 if __name__ == '__main__':

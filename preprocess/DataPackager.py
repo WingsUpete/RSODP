@@ -207,6 +207,16 @@ def inWhichGrid(coord, grid_info):
     return row, col, gridID
 
 
+def constructReqMat(df, grid_info):
+    request_matrix = np.zeros((grid_info['gridNum'], grid_info['gridNum']))
+    for df_i in range(len(df)):
+        cur_data = df.iloc[df_i]
+        src_row, src_col, src_id = inWhichGrid((cur_data['src lat'], cur_data['src lng']), grid_info)
+        dst_row, dst_col, dst_id = inWhichGrid((cur_data['dst lat'], cur_data['dst lng']), grid_info)
+        request_matrix[src_id][dst_id] += 1
+    return request_matrix.astype(np.float32)
+
+
 def ID2Coord(gridID, grid_info):
     """
     Given a grid ID, decide the coordinate of that grid
@@ -249,13 +259,7 @@ def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_n
         df_split.to_csv(os.path.join(curDir, 'request.csv'), index=False)
 
     # Get request matrix G
-    request_matrix = np.zeros((len(grid_nodes), len(grid_nodes)))
-    for split_i in range(len(df_split)):
-        curData = df_split.iloc[split_i]
-        srcRow, srcCol, srcID = inWhichGrid((curData['src lat'], curData['src lng']), grid_info)
-        dstRow, dstCol, dstID = inWhichGrid((curData['dst lat'], curData['dst lng']), grid_info)
-        # request_matrix[srcID][dstID] += curData['volume']
-        request_matrix[srcID][dstID] += 1
+    request_matrix = constructReqMat(df_split, grid_info)
     GDVQ['G'] = request_matrix.astype(np.float32)
 
     # Get Feature Matrix V

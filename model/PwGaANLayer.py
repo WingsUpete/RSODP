@@ -7,12 +7,14 @@ import torch.nn.functional as F
 
 
 class PwGaANLayer(nn.Module):
-    def __init__(self, in_dim, out_dim, num_heads=1, att=True, gate=True):
+    def __init__(self, in_dim, out_dim, num_heads=1, att=True, gate=True, use_pre_w=True):
         super(PwGaANLayer, self).__init__()
         self.in_dim = in_dim
         self.out_dim = out_dim
 
         self.num_heads = num_heads
+
+        self.use_pre_w = use_pre_w
 
         self.att = att
         if self.att:
@@ -49,7 +51,7 @@ class PwGaANLayer(nn.Module):
             nn.init.xavier_normal_(self.gate_fc_r.weight, gain=gain)
 
     def edge_attention(self, edges):
-        a = self.att_out_fc_l(edges.data['pre_w'] * edges.src['z']) + self.att_out_fc_r(edges.dst['z'])
+        a = self.att_out_fc_l((edges.data['pre_w'] if self.use_pre_w else 1) * edges.src['z']) + self.att_out_fc_r(edges.dst['z'])
         return {'e': F.leaky_relu(a)}
 
     def message_func(self, edges):
@@ -58,11 +60,14 @@ class PwGaANLayer(nn.Module):
         # mailbox['proj_z']: z->x, so we need z's projected features
         # mailbox['e']: z->x has a e for attention calculation
         if self.gate:
-            pwFeat = edges.data['pre_w'] * edges.src['v']
+            pwFeat = (edges.data['pre_w'] if self.use_pre_w else 1) * edges.src['v']
             return {'proj_z': edges.src['proj_z'], 'e': edges.data['e'], 'pre_v_g': pwFeat}
         else:
-            return {'proj_z': edges.src['proj_z'], 'e': edges.data['e']} if self.att else \
-                {'proj_z': edges.src['proj_z'], 'pre_w': edges.data['pre_w']}
+            if self.att:
+                return {'proj_z': edges.src['proj_z'], 'e': edges.data['e']}
+            else:
+                return {'proj_z': edges.src['proj_z'], 'pre_w': edges.data['pre_w']} if self.use_pre_w else \
+                    {'proj_z': edges.src['proj_z']}
 
     def reduce_func(self, nodes):
         """ Specify how messages are processed and propagated to nodes """
@@ -72,7 +77,8 @@ class PwGaANLayer(nn.Module):
             alpha = F.dropout(alpha, 0.1)
             h = torch.sum(alpha * nodes.mailbox['proj_z'], dim=1)
         else:
-            h = torch.sum(nodes.mailbox['pre_w'] * nodes.mailbox['proj_z'], dim=1)
+            h = torch.sum(nodes.mailbox['pre_w'] * nodes.mailbox['proj_z'], dim=1) if self.use_pre_w else \
+                torch.sum(nodes.mailbox['proj_z'], dim=1)
 
         # head gates
         if self.gate:
@@ -105,15 +111,19 @@ class PwGaANLayer(nn.Module):
 
 
 class MultiHeadPwGaANLayer(nn.Module):
-    def __init__(self, in_dim, out_dim, num_heads, merge='cat', att=True, gate=True):
+    def __init__(self, in_dim, out_dim, num_heads, merge='cat', att=True, gate=True, use_pre_w=True):
         super(MultiHeadPwGaANLayer, self).__init__()
         self.att = att
         self.gate = gate
         if (not self.att) and self.gate:
             sys.stderr.write('[MultiHeadPwGaANLayer] Use Attention = %s but Use Gate = %s!\n' % (str(self.att), str(self.gate)))
             exit(-985)
+
+        self.use_pre_w = use_pre_w
+
         self.num_heads = num_heads
-        self.pwGaAN = PwGaANLayer(in_dim, out_dim, num_heads=self.num_heads, att=self.att, gate=self.gate)
+        self.pwGaAN = PwGaANLayer(in_dim, out_dim, num_heads=self.num_heads, att=self.att, gate=self.gate, use_pre_w=self.use_pre_w)
+
         self.merge = merge
 
     def forward(self, g: dgl.DGLGraph):

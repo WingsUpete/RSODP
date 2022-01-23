@@ -22,7 +22,7 @@ class GEML(nn.Module):
         self.tran_embed_dim = self.temp_embed_dim   # Embedding dimension after transition projection
 
         # Spatial Attention Layer
-        self.spatLayer = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=1, att=False, gate=False, merge='mean', num_dim=self.num_dim, cat_orig=False)
+        self.spatLayer = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=1, att=False, gate=False, merge='mean', num_dim=self.num_dim, cat_orig=False, use_pre_w=True)
 
         # Temporal Layer (GRU)
         self.tempLayer = nn.LSTM(input_size=self.spat_embed_dim, hidden_size=self.temp_embed_dim)

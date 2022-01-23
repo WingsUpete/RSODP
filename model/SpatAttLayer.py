@@ -10,20 +10,23 @@ from .PwGaANLayer import MultiHeadPwGaANLayer
 
 
 class SpatAttLayer(nn.Module):
-    def __init__(self, feat_dim, hidden_dim, num_heads, att=True, gate=True, merge='mean', num_dim=3, cat_orig=True):
+    def __init__(self, feat_dim, hidden_dim, num_heads, att=True, gate=True, merge='mean', num_dim=3, cat_orig=True, use_pre_w=True):
         super(SpatAttLayer, self).__init__()
         self.feat_dim = feat_dim
         self.hidden_dim = hidden_dim
         self.num_heads = num_heads
+
         self.att = att
         self.gate = gate
         self.merge = merge
 
         self.num_dim = num_dim
 
+        self.use_pre_w = use_pre_w
+
         self.dimSpatAttLayers = nn.ModuleList([
             MultiHeadPwGaANLayer(self.feat_dim, self.hidden_dim, self.num_heads,
-                                 merge=self.merge, att=self.att, gate=self.gate)
+                                 merge=self.merge, att=self.att, gate=self.gate, use_pre_w=self.use_pre_w)
             for _ in range(self.num_dim)
         ])
 
@@ -87,7 +90,7 @@ if __name__ == '__main__':
     (dgg,), _ = dgl.load_graphs('test/GeoGraph.dgl')
     V = torch.from_numpy(V)
 
-    spatAttLayer = SpatAttLayer(feat_dim=43, hidden_dim=16, num_heads=3, gate=True, num_dim=3, cat_orig=True)
+    spatAttLayer = SpatAttLayer(feat_dim=43, hidden_dim=16, num_heads=3, gate=True, num_dim=3, cat_orig=True, use_pre_w=True)
     print(V, V.shape)
     dfg.ndata['v'] = V
     dbg.ndata['v'] = V

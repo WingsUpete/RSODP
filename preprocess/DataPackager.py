@@ -238,6 +238,7 @@ def oneHotEncode(val, valList: list):
 def constructFBGraph(request_matrix, num_grid_nodes, mix=False):
     if mix:     # Forward & Backward mixed together (For GEML)
         P_src_list, P_dst_list = [], []
+        P_mat = np.zeros((num_grid_nodes, num_grid_nodes))
 
         for rmi in range(num_grid_nodes):
             for rmj in range(num_grid_nodes):
@@ -247,8 +248,9 @@ def constructFBGraph(request_matrix, num_grid_nodes, mix=False):
                 # Mixed Neighborhood: rmj is rmi's neighbor either rmi->rmj or rmj->rmi
                 if request_matrix[rmi][rmj] > 0 or request_matrix[rmj][rmi] > 0:
                     P_src_list, P_dst_list = pushGraphEdge(P_src_list, P_dst_list, None, rmj, rmi, None)
+                    P_mat[rmj][rmi] = request_matrix[rmi][rmj] + request_matrix[rmj][rmi]
 
-        FBN_graph = matOD2G(mat=None, oList=P_src_list, dList=P_dst_list, nGNodes=num_grid_nodes, hasPreWeights=False)
+        FBN_graph = matOD2G(mat=P_mat, oList=P_src_list, dList=P_dst_list, nGNodes=num_grid_nodes, hasPreWeights=False)
         return FBN_graph
     else:
         Pa_src_list, Pa_dst_list = [], []   # Psi & a

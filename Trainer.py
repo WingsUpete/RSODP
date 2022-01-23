@@ -15,7 +15,7 @@ sys.stderr = stderr
 
 from utils import Logger, batch2device, plot_grad_flow, evalMetrics, genMetricsResStorage, aggrMetricsRes, wrapMetricsRes
 from RSODPDataSet import RSODPDataSet
-from model import Gallat, GallatExt, GallatExtFull, AR, LSTNet
+from model import Gallat, GallatExt, GallatExtFull, AR, LSTNet, GEML
 from HistoricalAverage import avgRec
 
 import Config
@@ -32,6 +32,8 @@ def batch2res(batch, device, *args):
 
     if net.__class__.__name__ in ['AR', 'LSTNet']:
         res_D, res_G = net(recordGD)
+    elif net.__class__.__name__ == 'GEML':
+        res_D, res_G = net(record['Sp'])
     else:
         ref_D, ref_G = avgRec(recordGD, scheme=scheme) if tune else (None, None)
         res_D, res_G = net(record, query, ref_D, ref_G, predict_G=True, ref_extent=ref_ext)
@@ -77,11 +79,11 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     else:
         logr.log('> Initializing the Training Model: {}, Train type = {}\n'.format(model, train_type))
         if model == 'Gallat':
-            net = Gallat(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_dim=2 if mix_FB else 3)
+            net = Gallat(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_dim=3)
         elif model == 'GallatExt':
-            net = GallatExt(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_heads=Config.NUM_HEADS_DEFAULT, num_dim=2 if mix_FB else 3)
+            net = GallatExt(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_heads=Config.NUM_HEADS_DEFAULT, num_dim=3)
         elif model == 'GallatExtFull':
-            net = GallatExtFull(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_heads=Config.NUM_HEADS_DEFAULT, num_dim=2 if mix_FB else 3)
+            net = GallatExtFull(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_heads=Config.NUM_HEADS_DEFAULT, num_dim=3)
         elif model == 'AR':
             net = AR(p=Config.HISTORICAL_RECORDS_NUM_DEFAULT)
         elif model == 'LSTNet':
@@ -93,6 +95,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                 sys.stderr.write('[TRAIN] With LSTNet, the referenced AR model is not an AR model (got %s)!\n' % refAR.__class__.__name__)
                 exit(-555)
             net = LSTNet(p=Config.HISTORICAL_RECORDS_NUM_DEFAULT, refAR=refAR)
+        elif model == 'GEML':
+            net = GEML(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_dim=2)
 
     logr.log('> Model Structure:\n{}\n'.format(net))
 
@@ -165,6 +169,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                     with profiler.record_function('model_inference'):
                         if model == 'AR':
                             res_D, res_G = net(record_GD)
+                        elif model == 'GEML':
+                            res_D, res_G = net(record['Sp'])
                         else:
                             res_D, res_G = net(record, query, predict_G=predict_G)   # if pretrain, res_G = None
                 logr.log(prof.key_averages().table(sort_by="cuda_time_total"))
@@ -172,6 +178,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
 
             if model in ['AR', 'LSTNet']:
                 res_D, res_G = net(record_GD)
+            elif model == 'GEML':
+                res_D, res_G = net(record['Sp'])
             else:
                 ref_D, ref_G = avgRec(record_GD) if tune else (None, None)
                 res_D, res_G = net(record, query, ref_D, ref_G, predict_G=predict_G, ref_extent=ref_ext)  # if pretrain, res_G = None
@@ -219,6 +227,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
 
                     if model in ['AR', 'LSTNet']:
                         val_res_D, val_res_G = net(val_record_GD)
+                    elif model == 'GEML':
+                        val_res_D, val_res_G = net(val_record['Sp'])
                     else:
                         val_ref_D, val_ref_G = avgRec(val_record_GD) if tune else (None, None)
                         val_res_D, val_res_G = net(val_record, val_query, val_ref_D, val_ref_G, predict_G=predict_G, ref_extent=ref_ext)

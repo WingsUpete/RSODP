@@ -40,6 +40,10 @@ python Trainer.py -dr data/ny2016_0101to0331/ -th 2184 -ts 1 -c 20 -gid 0 -m tra
 #python Trainer.py -dr data/ny2016_0101to0331/ -th 2184 -ts 1 -c 20 -gid 0 -m train -net LSTNet -rar refAR.pth
 #python Trainer.py -dr data/ny2016_0101to0331/ -th 2184 -ts 1 -c 20 -gid 0 -m eval -e eval.pth
 
+### GEML ###
+#python Trainer.py -dr data/ny2016_0101to0331/ -th 2184 -ts 1 -mfb 1 -c 20 -gid 0 -m train -net GEML
+#python Trainer.py -dr data/ny2016_0101to0331/ -th 2184 -ts 1 -mfb 1 -c 20 -gid 0 -m eval -e eval.pth
+
 
 
 ##### Variants #####

@@ -23,7 +23,7 @@ class GallatExt(nn.Module):
         self.temp_embed_dim = self.spat_embed_dim   # Embedding dimension after temporal feature extraction
 
         # Spatial Attention Layer
-        self.spatAttLayer = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=self.num_heads, gate=True, merge='mean', num_dim=self.num_dim)
+        self.spatAttLayer = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=self.num_heads, gate=True, merge='mean', num_dim=self.num_dim, cat_orig=True)
 
         # Temporal Attention Layer
         self.tempAttLayer = TempAttLayer(query_dim=self.query_dim, embed_dim=self.spat_embed_dim, rec_merge='mean', comb_merge='mean')
@@ -67,7 +67,7 @@ class GallatExtFull(nn.Module):
         self.temp_embed_dim = int(4 * self.spat_embed_dim)    # Embedding dimension after temporal feature extraction
 
         # Spatial Attention Layer
-        self.spatAttLayer = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=self.num_heads, gate=True, merge='cat', num_dim=self.num_dim)
+        self.spatAttLayer = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=self.num_heads, gate=True, merge='cat', num_dim=self.num_dim, cat_orig=True)
 
         # Temporal Attention Layer
         self.tempAttLayer = TempAttLayer(query_dim=self.query_dim, embed_dim=self.spat_embed_dim, rec_merge='mean', comb_merge='cat')

@@ -10,29 +10,34 @@ from .PwGaANLayer import MultiHeadPwGaANLayer
 
 
 class SpatAttLayer(nn.Module):
-    def __init__(self, feat_dim, hidden_dim, num_heads, gate=False, merge='mean', num_dim=3):
+    def __init__(self, feat_dim, hidden_dim, num_heads, att=True, gate=True, merge='mean', num_dim=3, cat_orig=True):
         super(SpatAttLayer, self).__init__()
         self.feat_dim = feat_dim
         self.hidden_dim = hidden_dim
         self.num_heads = num_heads
+        self.att = att
         self.gate = gate
         self.merge = merge
 
         self.num_dim = num_dim
 
         self.dimSpatAttLayers = nn.ModuleList([
-            MultiHeadPwGaANLayer(self.feat_dim, self.hidden_dim, self.num_heads, gate=self.gate, merge=self.merge)
+            MultiHeadPwGaANLayer(self.feat_dim, self.hidden_dim, self.num_heads,
+                                 merge=self.merge, att=self.att, gate=self.gate)
             for _ in range(self.num_dim)
         ])
 
         self.proj_fc = nn.Linear(self.feat_dim, self.hidden_dim, bias=False)
 
+        self.cat_orig = cat_orig
+        orig_flag = 1 if self.cat_orig else 0
+
         # BatchNorm
-        self.bn = nn.BatchNorm1d(num_features=int(self.hidden_dim * (self.num_dim + 1)))
+        self.bn = nn.BatchNorm1d(num_features=int(self.hidden_dim * (self.num_dim + orig_flag)))
         if self.merge == 'mean':
-            self.bn = nn.BatchNorm1d(num_features=int(self.hidden_dim * (self.num_dim + 1)))
+            self.bn = nn.BatchNorm1d(num_features=int(self.hidden_dim * (self.num_dim + orig_flag)))
         elif self.merge == 'cat':
-            self.bn = nn.BatchNorm1d(num_features=int(self.hidden_dim * (self.num_dim * self.num_heads + 1)))
+            self.bn = nn.BatchNorm1d(num_features=int(self.hidden_dim * (self.num_dim * self.num_heads + orig_flag)))
 
         self.reset_parameters()
 
@@ -62,7 +67,7 @@ class SpatAttLayer(nn.Module):
 
         hs = [self.dimSpatAttLayers[i](gs[i]) for i in range(len(gs))]
 
-        h = torch.cat([out_proj_feat] + hs, dim=-1)
+        h = torch.cat(([out_proj_feat] if self.cat_orig else []) + hs, dim=-1)
         del out_proj_feat
         del hs
 
@@ -82,7 +87,7 @@ if __name__ == '__main__':
     (dgg,), _ = dgl.load_graphs('test/GeoGraph.dgl')
     V = torch.from_numpy(V)
 
-    spatAttLayer = SpatAttLayer(feat_dim=43, hidden_dim=16, num_heads=3, gate=True, num_dim=3)
+    spatAttLayer = SpatAttLayer(feat_dim=43, hidden_dim=16, num_heads=3, gate=True, num_dim=3, cat_orig=True)
     print(V, V.shape)
     dfg.ndata['v'] = V
     dbg.ndata['v'] = V

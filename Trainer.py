@@ -96,7 +96,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                 exit(-555)
             net = LSTNet(p=Config.HISTORICAL_RECORDS_NUM_DEFAULT, refAR=refAR)
         elif model == 'GEML':
-            net = GEML(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim)
+            net = GEML(feat_dim=feat_dim, hidden_dim=hidden_dim)
 
     logr.log('> Model Structure:\n{}\n'.format(net))
 

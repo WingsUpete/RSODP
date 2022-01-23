@@ -6,11 +6,10 @@ from .SpatAttLayer import SpatAttLayer
 
 
 class GEML(nn.Module):
-    def __init__(self, feat_dim=43, query_dim=41, hidden_dim=16):
+    def __init__(self, feat_dim=43, hidden_dim=16):
         super(GEML, self).__init__()
 
         self.feat_dim = feat_dim
-        self.query_dim = query_dim
         self.hidden_dim = hidden_dim
 
         self.num_dim = 2

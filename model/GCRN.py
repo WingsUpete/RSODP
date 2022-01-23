@@ -6,10 +6,10 @@ from .SpatAttLayer import SpatAttLayer
 
 
 class GCRN(nn.Module):
-    def __init__(self, feat_dim=361, hidden_dim=16):
+    def __init__(self, num_nodes=361, hidden_dim=16):
         super(GCRN, self).__init__()
 
-        self.feat_dim = feat_dim
+        self.num_nodes = num_nodes
         self.hidden_dim = hidden_dim
 
         self.num_dim = 1
@@ -19,8 +19,8 @@ class GCRN(nn.Module):
         self.tran_embed_dim = self.temp_embed_dim   # Embedding dimension after transition projection
 
         # Spatial Attention Layer
-        self.spatLayer_D = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=1, att=False, gate=False, merge='mean', num_dim=self.num_dim, cat_orig=False, use_pre_w=False)
-        self.spatLayer_G = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=1, att=False, gate=False, merge='mean', num_dim=self.num_dim, cat_orig=False, use_pre_w=False)
+        self.spatLayer_D = SpatAttLayer(feat_dim=1, hidden_dim=self.hidden_dim, num_heads=1, att=False, gate=False, merge='mean', num_dim=self.num_dim, cat_orig=False, use_pre_w=False)
+        self.spatLayer_G = SpatAttLayer(feat_dim=self.num_nodes, hidden_dim=self.hidden_dim, num_heads=1, att=False, gate=False, merge='mean', num_dim=self.num_dim, cat_orig=False, use_pre_w=False)
 
         # Temporal Layer (GRU)
         self.tempLayer_D = nn.LSTM(input_size=self.spat_embed_dim, hidden_size=self.temp_embed_dim)
@@ -37,9 +37,9 @@ class GCRN(nn.Module):
         nn.init.xavier_normal_(self.tran_d_l.weight, gain=gain)
         nn.init.xavier_normal_(self.tran_g_l.weight, gain=gain)
 
-    def forward(self, record_p: list):
+    def forward(self, record_t: list):
         # Extract spatial features
-        spat_embed_p = torch.stack([self.spatLayer(list(gs)) for gs in record_p])
+        spat_embed_p = torch.stack([self.spatLayer(list(gs)) for gs in record_t])
         spat_embed_p = F.sigmoid(spat_embed_p)
 
         if spat_embed_p.device.type == 'cuda':

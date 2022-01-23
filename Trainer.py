@@ -15,7 +15,7 @@ sys.stderr = stderr
 
 from utils import Logger, batch2device, plot_grad_flow, evalMetrics, genMetricsResStorage, aggrMetricsRes, wrapMetricsRes
 from RSODPDataSet import RSODPDataSet
-from model import Gallat, GallatExt, GallatExtFull, AR, LSTNet, GEML
+from model import Gallat, GallatExt, GallatExtFull, AR, LSTNet, GCRN, GEML
 from HistoricalAverage import avgRec
 
 import Config
@@ -31,6 +31,8 @@ def batch2res(batch, device, *args):
 
     if net.__class__.__name__ in ['AR', 'LSTNet']:
         res_D, res_G = net(record_GD)
+    elif net.__class__.__name__ == 'GCRN':
+        res_D, res_G = net(record_GCRN)
     elif net.__class__.__name__ == 'GEML':
         res_D, res_G = net(record['Sp'])
     else:
@@ -94,6 +96,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                 sys.stderr.write('[TRAIN] With LSTNet, the referenced AR model is not an AR model (got %s)!\n' % refAR.__class__.__name__)
                 exit(-555)
             net = LSTNet(p=Config.HISTORICAL_RECORDS_NUM_DEFAULT, refAR=refAR)
+        elif model == 'GCRN':
+            net = GCRN(num_nodes=dataset.grid_info['gridNum'], hidden_dim=hidden_dim)
         elif model == 'GEML':
             net = GEML(feat_dim=feat_dim, hidden_dim=hidden_dim)
 
@@ -168,6 +172,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                     with profiler.record_function('model_inference'):
                         if model == 'AR':
                             res_D, res_G = net(record_GD)
+                        elif model == 'GCRN':
+                            res_D, res_G = net(record_GCRN)
                         elif model == 'GEML':
                             res_D, res_G = net(record['Sp'])
                         else:
@@ -177,6 +183,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
 
             if model in ['AR', 'LSTNet']:
                 res_D, res_G = net(record_GD)
+            elif model == 'GCRN':
+                res_D, res_G = net(record_GCRN)
             elif model == 'GEML':
                 res_D, res_G = net(record['Sp'])
             else:
@@ -226,6 +234,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
 
                     if model in ['AR', 'LSTNet']:
                         val_res_D, val_res_G = net(val_record_GD)
+                    elif model == 'GCRN':
+                        val_res_D, val_res_G = net(val_record_GCRN)
                     elif model == 'GEML':
                         val_res_D, val_res_G = net(val_record['Sp'])
                     else:

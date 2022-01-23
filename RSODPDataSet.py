@@ -109,6 +109,7 @@ class RSODPDataSet:
                  unify_FB=False, mix_FB=False):
         self.data_dir = data_dir
         self.req_info = json.load(open(os.path.join(data_dir, 'req_info.json')))
+        self.grid_info = json.load(open(os.path.join(data_dir, 'grid_info.json')))
         self.his_rec_num = his_rec_num  # P
         self.time_slot_num_per_day = 24 / time_slot_endurance  # l
 

@@ -2,12 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .SpatAttLayer import SpatAttLayer
 
-
-class GEML(nn.Module):
+class GCRN(nn.Module):
     def __init__(self, feat_dim=43, query_dim=41, hidden_dim=16):
-        super(GEML, self).__init__()
+        super(GCRN, self).__init__()
 
         self.feat_dim = feat_dim
         self.query_dim = query_dim
@@ -20,7 +18,7 @@ class GEML(nn.Module):
         self.tran_embed_dim = self.temp_embed_dim   # Embedding dimension after transition projection
 
         # Spatial Attention Layer
-        self.spatLayer = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=1, att=False, gate=False, merge='mean', num_dim=self.num_dim, cat_orig=False, use_pre_w=True)
+        # self.spatLayer = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=1, att=False, gate=False, merge='mean', num_dim=self.num_dim, cat_orig=False, use_pre_w=True)
 
         # Temporal Layer (GRU)
         self.tempLayer = nn.LSTM(input_size=self.spat_embed_dim, hidden_size=self.temp_embed_dim)

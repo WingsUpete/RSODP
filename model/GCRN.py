@@ -37,40 +37,52 @@ class GCRN(nn.Module):
         nn.init.xavier_normal_(self.tran_d_l.weight, gain=gain)
         nn.init.xavier_normal_(self.tran_g_l.weight, gain=gain)
 
-    def forward(self, record_t: list):
+    def forward(self, record_GCRN: list):
         # Extract spatial features
-        spat_embed_p = torch.stack([self.spatLayer(list(gs)) for gs in record_t])
-        spat_embed_p = F.sigmoid(spat_embed_p)
+        for i in range(len(record_GCRN)):
+            record_GCRN[i][-1].ndata['v'] = record_GCRN[i][-1].ndata['d']
+        spat_embed_t_D = torch.stack([self.spatLayer_D(list(gs)) for gs in record_GCRN])
 
-        if spat_embed_p.device.type == 'cuda':
+        for i in range(len(record_GCRN)):
+            record_GCRN[i][-1].ndata['v'] = record_GCRN[i][-1].ndata['g']
+        spat_embed_t_G = torch.stack([self.spatLayer_G(list(gs)) for gs in record_GCRN])
+
+        if spat_embed_t_D.device.type == 'cuda':
             torch.cuda.empty_cache()
 
-        num_records, num_nodes = spat_embed_p.shape[0], spat_embed_p.shape[-2]
+        num_records = spat_embed_t_D.shape[0]
 
         # Extract temporal features
-        o, (h, c) = self.tempLayer(spat_embed_p.reshape(num_records, -1, self.spat_embed_dim))
-        temp_embed_p = h.reshape(-1, num_nodes, self.temp_embed_dim)
-        del spat_embed_p
-        del o
-        del h
-        del c
+        o_D, (h_D, c_D) = self.tempLayer_D(spat_embed_t_D.reshape(num_records, -1, self.spat_embed_dim))
+        temp_embed_t_D = h_D.reshape(-1, self.num_nodes, self.temp_embed_dim)
+        del spat_embed_t_D
+        del o_D
+        del h_D
+        del c_D
 
-        if temp_embed_p.device.type == 'cuda':
+        o_G, (h_G, c_G) = self.tempLayer_G(spat_embed_t_G.reshape(num_records, -1, self.spat_embed_dim))
+        temp_embed_t_G = h_G.reshape(-1, self.num_nodes, self.temp_embed_dim)
+        del spat_embed_t_G
+        del o_G
+        del h_G
+        del c_G
+
+        if temp_embed_t_D.device.type == 'cuda':
             torch.cuda.empty_cache()
 
         # Transfer D
-        res_D = self.tran_d_l(temp_embed_p).reshape(-1, num_nodes)
+        res_D = self.tran_d_l(temp_embed_t_D).reshape(-1, self.num_nodes)
+        del temp_embed_t_D
 
         # Transfer G
-        reshaped_temp_embed_p = temp_embed_p.reshape(-1, num_nodes, 1, self.temp_embed_dim)
-        gl = reshaped_temp_embed_p.repeat(1, 1, num_nodes, 1)
-        gr = torch.transpose(reshaped_temp_embed_p, -3, -2).repeat(1, num_nodes, 1, 1)
+        reshaped_temp_embed_t_G = temp_embed_t_G.reshape(-1, self.num_nodes, 1, self.temp_embed_dim)
+        gl = reshaped_temp_embed_t_G.repeat(1, 1, self.num_nodes, 1)
+        gr = torch.transpose(reshaped_temp_embed_t_G, -3, -2).repeat(1, self.num_nodes, 1, 1)
         res_G = torch.sum(self.tran_g_l(gl) * gr, dim=-1)
-        del reshaped_temp_embed_p
+        del temp_embed_t_G
+        del reshaped_temp_embed_t_G
         del gl
         del gr
-
-        del temp_embed_p
 
         return res_D, res_G
 

@@ -250,7 +250,7 @@ def constructFBGraph(request_matrix, num_grid_nodes, mix=False):
                     P_src_list, P_dst_list = pushGraphEdge(P_src_list, P_dst_list, None, rmj, rmi, None)
                     P_mat[rmj][rmi] = request_matrix[rmi][rmj] + request_matrix[rmj][rmi]
 
-        FBN_graph = matOD2G(mat=P_mat, oList=P_src_list, dList=P_dst_list, nGNodes=num_grid_nodes, hasPreWeights=False)
+        FBN_graph = matOD2G(mat=P_mat, oList=P_src_list, dList=P_dst_list, nGNodes=num_grid_nodes, hasPreWeights=True)
         return FBN_graph
     else:
         Pa_src_list, Pa_dst_list = [], []   # Psi & a

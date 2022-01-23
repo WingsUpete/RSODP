@@ -22,6 +22,7 @@ data/
 **/req_info.json
 **/GeoGraph.dgl
 **/FBGraphs.dgl
+**/FBGraphMix.dgl
 **/GDVQ.npy
 
 # Results

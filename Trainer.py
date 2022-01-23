@@ -43,6 +43,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
           eval_freq=Config.EVAL_FREQ_DEFAULT, opt=Config.OPTIMIZER_DEFAULT, num_workers=Config.WORKERS_DEFAULT,
           use_gpu=True, gpu_id=Config.GPU_ID_DEFAULT,
           data_dir=Config.DATA_DIR_DEFAULT, logr=Logger(activate=False),
+          unify_FB=False,
           model=Config.NETWORK_DEFAULT, ref_AR_path=Config.REF_AR_DEFAULT,
           model_save_dir=Config.MODEL_SAVE_DIR_DEFAULT, train_type=Config.TRAIN_TYPE_DEFAULT,
           metrics_threshold=torch.Tensor([0]), total_H=Config.DATA_TOTAL_H, start_H=Config.DATA_START_H,
@@ -55,10 +56,11 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
 
     # Load DataSet
     logr.log('> Loading DataSet from {}\n'.format(data_dir))
-    dataset = RSODPDataSet(data_dir, his_rec_num=Config.HISTORICAL_RECORDS_NUM_DEFAULT, time_slot_endurance=Config.TIME_SLOT_ENDURANCE_DEFAULT, total_H=total_H, start_at=start_H)
+    dataset = RSODPDataSet(data_dir, his_rec_num=Config.HISTORICAL_RECORDS_NUM_DEFAULT, time_slot_endurance=Config.TIME_SLOT_ENDURANCE_DEFAULT, total_H=total_H, start_at=start_H, unify_FB=unify_FB)
     trainloader = GraphDataLoader(dataset.train_set, batch_size=bs, shuffle=True, num_workers=num_workers)
     validloader = GraphDataLoader(dataset.valid_set, batch_size=bs, shuffle=False, num_workers=num_workers)
     logr.log('> Total Hours: {}, starting from {}\n'.format(total_H, start_H))
+    logr.log('> Unify FB Graphs: {}\n'.format(unify_FB))
     logr.log('> Training batches: {}, Validation batches: {}\n'.format(len(trainloader), len(validloader)))
 
     # Initialize the Model
@@ -245,6 +247,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
 def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKERS_DEFAULT,
              use_gpu=True, gpu_id=Config.GPU_ID_DEFAULT,
              data_dir=Config.DATA_DIR_DEFAULT, logr=Logger(activate=False),
+             unify_FB=False,
              total_H=Config.DATA_TOTAL_H, start_H=Config.DATA_START_H,
              tune=True, ref_ext=Config.REF_EXTENT):
     """
@@ -268,9 +271,10 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
 
     # Load DataSet
     logr.log('> Loading DataSet from {}\n'.format(data_dir))
-    dataset = RSODPDataSet(data_dir, his_rec_num=Config.HISTORICAL_RECORDS_NUM_DEFAULT, time_slot_endurance=Config.TIME_SLOT_ENDURANCE_DEFAULT, total_H=total_H, start_at=start_H)
+    dataset = RSODPDataSet(data_dir, his_rec_num=Config.HISTORICAL_RECORDS_NUM_DEFAULT, time_slot_endurance=Config.TIME_SLOT_ENDURANCE_DEFAULT, total_H=total_H, start_at=start_H, unify_FB=unify_FB)
     validloader = GraphDataLoader(dataset.valid_set, batch_size=bs, shuffle=False, num_workers=num_workers)
     testloader = GraphDataLoader(dataset.test_set, batch_size=bs, shuffle=False, num_workers=num_workers)
+    logr.log('> Unify FB Graphs: {}\n'.format(unify_FB))
     logr.log('> Validation batches: {}, Test batches: {}\n'.format(len(validloader), len(testloader)))
 
     # Referenced Extent
@@ -308,6 +312,7 @@ if __name__ == '__main__':
     parser.add_argument('-dr', '--data_dir', type=str, default=Config.DATA_DIR_DEFAULT, help='Root directory of the input data, default = {}'.format(Config.DATA_DIR_DEFAULT))
     parser.add_argument('-th', '--hours', type=int, default=Config.DATA_TOTAL_H, help='Specify the number of hours for data, default = {}'.format(Config.DATA_TOTAL_H))
     parser.add_argument('-ts', '--start_hour', type=int, default=Config.DATA_START_H, help='Specify the starting hour for data, default = {}'.format(Config.DATA_START_H))
+    parser.add_argument('-u', '--ufb', type=int, default=Config.UNIFY_FB_DEFAULT, help='Specify whether to unify FB graphs, default = {}'.format(Config.UNIFY_FB_DEFAULT))
     parser.add_argument('-ld', '--log_dir', type=str, default=Config.LOG_DIR_DEFAULT, help='Specify where to create a log file. If log files are not wanted, value will be None'.format(Config.LOG_DIR_DEFAULT))
     parser.add_argument('-c', '--cores', type=int, default=Config.WORKERS_DEFAULT, help='number of workers (cores used), default = {}'.format(Config.WORKERS_DEFAULT))
     parser.add_argument('-gpu', '--gpu', type=int, default=Config.USE_GPU_DEFAULT, help='Specify whether to use GPU, default = {}'.format(Config.USE_GPU_DEFAULT))
@@ -338,6 +343,7 @@ if __name__ == '__main__':
               eval_freq=FLAGS.eval_freq, opt=FLAGS.optimizer, num_workers=FLAGS.cores,
               use_gpu=(FLAGS.gpu == 1), gpu_id=FLAGS.gpu_id,
               data_dir=FLAGS.data_dir, logr=logger,
+              unify_FB=(FLAGS.ufb == 1),
               model=FLAGS.network, ref_AR_path=FLAGS.ref_ar,
               model_save_dir=FLAGS.model_save_dir, train_type=FLAGS.train_type,
               metrics_threshold=torch.Tensor([FLAGS.metrics_threshold]),
@@ -357,6 +363,7 @@ if __name__ == '__main__':
         evaluate(eval_file, bs=FLAGS.batch_size, num_workers=FLAGS.cores,
                  use_gpu=(FLAGS.gpu == 1), gpu_id=FLAGS.gpu_id,
                  data_dir=FLAGS.data_dir, logr=logger, total_H=FLAGS.hours, start_H=FLAGS.start_hour,
+                 unify_FB=(FLAGS.ufb == 1),
                  tune=(FLAGS.tune == 1), ref_ext=FLAGS.ref_extent)
         logger.close()
     else:

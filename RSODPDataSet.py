@@ -22,10 +22,13 @@ warnings.filterwarnings('ignore')
 
 
 class RSODPDataSetEntity(DGLDataset):
-    def __init__(self, data_dir: str, sample_list: list, ds_type='train'):
+    def __init__(self, data_dir: str, sample_list: list, ds_type='train',
+                 unify_FB=False):
         self.data_dir = data_dir
         self.sample_list = sample_list
         self.ds_type = ds_type
+
+        self.unify_FB = unify_FB
 
     def process(self):
         pass
@@ -55,7 +58,9 @@ class RSODPDataSetEntity(DGLDataset):
                 GDVQ_ts = np.load(os.path.join(self.data_dir, str(ts), 'GDVQ.npy'), allow_pickle=True).item()
                 G_ts, D_ts, V_ts = torch.from_numpy(GDVQ_ts['G']), torch.from_numpy(GDVQ_ts['D']), torch.from_numpy(GDVQ_ts['V'])
                 if temp_feat != Config.LSTNET_TEMP_FEAT:
-                    (fg_ts, bg_ts,), _ = dgl.load_graphs(os.path.join(self.data_dir, str(ts), 'FBGraphs.dgl'))
+                    FBG_path = os.path.join(self.data_dir, 'FBGraphs.dgl') if self.unify_FB \
+                        else os.path.join(self.data_dir, str(ts), 'FBGraphs.dgl')
+                    (fg_ts, bg_ts,), _ = dgl.load_graphs(FBG_path)
                     (gg_ts,), _ = dgl.load_graphs(os.path.join(self.data_dir, 'GeoGraph.dgl'))
                     fg_ts.ndata['v'] = V_ts
                     bg_ts.ndata['v'] = V_ts
@@ -85,11 +90,14 @@ class RSODPDataSet:
         validation set: the last 10% of the training set
     """
 
-    def __init__(self, data_dir: str, his_rec_num=7, time_slot_endurance=1, total_H=-1, start_at=-1):
+    def __init__(self, data_dir: str, his_rec_num=7, time_slot_endurance=1, total_H=-1, start_at=-1,
+                 unify_FB=False):
         self.data_dir = data_dir
         self.req_info = json.load(open(os.path.join(data_dir, 'req_info.json')))
         self.his_rec_num = his_rec_num  # P
         self.time_slot_num_per_day = 24 / time_slot_endurance  # l
+
+        self.unify_FB = unify_FB
 
         self.total_H = self.req_info['totalH'] if total_H <= 0 else total_H
         self.start_at = 1 if start_at <= 0 else start_at
@@ -98,9 +106,9 @@ class RSODPDataSet:
         self.total_sample_num = len(self.total_sample_list)
 
         self.train_list, self.valid_list, self.test_list = self.splitTrainValidTest()
-        self.train_set = RSODPDataSetEntity(self.data_dir, sample_list=self.train_list, ds_type='train')
-        self.valid_set = RSODPDataSetEntity(self.data_dir, sample_list=self.valid_list, ds_type='valid')
-        self.test_set = RSODPDataSetEntity(self.data_dir, sample_list=self.test_list, ds_type='test')
+        self.train_set = RSODPDataSetEntity(self.data_dir, sample_list=self.train_list, ds_type='train', unify_FB=self.unify_FB)
+        self.valid_set = RSODPDataSetEntity(self.data_dir, sample_list=self.valid_list, ds_type='valid', unify_FB=self.unify_FB)
+        self.test_set = RSODPDataSetEntity(self.data_dir, sample_list=self.test_list, ds_type='test', unify_FB=self.unify_FB)
 
     def constructSampleList(self):
         totalH = self.total_H

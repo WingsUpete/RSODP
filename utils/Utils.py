@@ -36,7 +36,7 @@ def batch2device(record, record_GD: dict, query, target_G: torch.Tensor, target_
     # Transfer record
     for temp_feat in Config.ALL_TEMP_FEAT_NAMES:
         if temp_feat != Config.LSTNET_TEMP_FEAT and record is not None:
-            record[temp_feat] = [(fg.to(device), bg.to(device), gg.to(device)) for (fg, bg, gg) in record[temp_feat]]
+            record[temp_feat] = [tuple([g.to(device) for g in gs]) for gs in record[temp_feat]]
         record_GD[temp_feat] = [(curD.to(device), curG.to(device)) for (curD, curG) in record_GD[temp_feat]]
 
     # Transfer query

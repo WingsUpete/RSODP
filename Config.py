@@ -25,6 +25,7 @@ EVAL_DEFAULT = 'eval.pth'   # should be a model file name
 MODEL_SAVE_DIR_DEFAULT = 'model_save/'
 
 UNIFY_FB_DEFAULT = 0
+MIX_FB_DEFAULT = 0
 
 MAX_NORM_DEFAULT = 10.0
 

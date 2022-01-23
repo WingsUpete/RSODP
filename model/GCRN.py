@@ -2,26 +2,29 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .SpatAttLayer import SpatAttLayer
+
 
 class GCRN(nn.Module):
-    def __init__(self, feat_dim=43, query_dim=41, hidden_dim=16):
+    def __init__(self, feat_dim=361, hidden_dim=16):
         super(GCRN, self).__init__()
 
         self.feat_dim = feat_dim
-        self.query_dim = query_dim
         self.hidden_dim = hidden_dim
 
-        self.num_dim = 2
+        self.num_dim = 1
 
         self.spat_embed_dim = int(self.num_dim * self.hidden_dim)     # Embedding dimension after spatial feature extraction
         self.temp_embed_dim = self.spat_embed_dim   # Embedding dimension after temporal feature extraction
         self.tran_embed_dim = self.temp_embed_dim   # Embedding dimension after transition projection
 
         # Spatial Attention Layer
-        # self.spatLayer = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=1, att=False, gate=False, merge='mean', num_dim=self.num_dim, cat_orig=False, use_pre_w=True)
+        self.spatLayer_D = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=1, att=False, gate=False, merge='mean', num_dim=self.num_dim, cat_orig=False, use_pre_w=False)
+        self.spatLayer_G = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=1, att=False, gate=False, merge='mean', num_dim=self.num_dim, cat_orig=False, use_pre_w=False)
 
         # Temporal Layer (GRU)
-        self.tempLayer = nn.LSTM(input_size=self.spat_embed_dim, hidden_size=self.temp_embed_dim)
+        self.tempLayer_D = nn.LSTM(input_size=self.spat_embed_dim, hidden_size=self.temp_embed_dim)
+        self.tempLayer_G = nn.LSTM(input_size=self.spat_embed_dim, hidden_size=self.temp_embed_dim)
 
         # Transfer Function
         self.tran_d_l = nn.Linear(in_features=self.temp_embed_dim, out_features=1, bias=True)

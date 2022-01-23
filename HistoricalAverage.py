@@ -52,7 +52,7 @@ def batch2res(batch, device, args):
     scheme = args[-1]
     recordGD, target_G, target_D = batch['record_GD'], batch['target_G'], batch['target_D']
     if device:
-        _, recordGD, _, target_G, target_D = batch2device(record=None, record_GD=recordGD, query=None,
+        _, recordGD, _, _, target_G, target_D = batch2device(record=None, record_GD=recordGD, record_GCRN=None, query=None,
                                                           target_G=target_G, target_D=target_D, device=device)
 
     res_D, res_G = avgRec(recordGD, scheme=scheme)

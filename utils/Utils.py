@@ -31,13 +31,16 @@ def haversine(c0, c1):
     return dist
 
 
-def batch2device(record, record_GD: dict, query, target_G: torch.Tensor, target_D: torch.Tensor, device):
+def batch2device(record, record_GD: dict, record_GCRN, query, target_G: torch.Tensor, target_D: torch.Tensor, device):
     """ Transfer all sample data into the device (cpu/gpu) """
     # Transfer record
     for temp_feat in Config.ALL_TEMP_FEAT_NAMES:
         if temp_feat != Config.LSTNET_TEMP_FEAT and record is not None:
             record[temp_feat] = [tuple([g.to(device) for g in gs]) for gs in record[temp_feat]]
         record_GD[temp_feat] = [(curD.to(device), curG.to(device)) for (curD, curG) in record_GD[temp_feat]]
+
+    if record_GCRN is not None:
+        record_GCRN = [tuple([g.to(device)]) for (g,) in record_GCRN]
 
     # Transfer query
     if query is not None:
@@ -47,7 +50,7 @@ def batch2device(record, record_GD: dict, query, target_G: torch.Tensor, target_
     target_G = target_G.to(device)
     target_D = target_D.to(device)
 
-    return record, record_GD, query, target_G, target_D
+    return record, record_GD, record_GCRN, query, target_G, target_D
 
 
 def RMSE(y_pred: torch.Tensor, y_true: torch.Tensor, threshold=torch.Tensor([0])):

@@ -25,17 +25,16 @@ if Config.CHECK_GRADS:
 
 def batch2res(batch, device, *args):
     scheme, net, tune, ref_ext = args[-1]
-    record, recordGD, query, target_G, target_D = batch['record'], batch['record_GD'], batch['query'], batch['target_G'], batch['target_D']
+    record, record_GD, record_GCRN, query, target_G, target_D = batch['record'], batch['record_GD'], batch['record_GCRN'], batch['query'], batch['target_G'], batch['target_D']
     if device:
-        record, recordGD, query, target_G, target_D = batch2device(record=record, record_GD=recordGD, query=query,
-                                                                   target_G=target_G, target_D=target_D, device=device)
+        record, record_GD, record_GCRN, query, target_G, target_D = batch2device(record, record_GD, record_GCRN, query, target_G, target_D, device)
 
     if net.__class__.__name__ in ['AR', 'LSTNet']:
-        res_D, res_G = net(recordGD)
+        res_D, res_G = net(record_GD)
     elif net.__class__.__name__ == 'GEML':
         res_D, res_G = net(record['Sp'])
     else:
-        ref_D, ref_G = avgRec(recordGD, scheme=scheme) if tune else (None, None)
+        ref_D, ref_G = avgRec(record_GD, scheme=scheme) if tune else (None, None)
         res_D, res_G = net(record, query, ref_D, ref_G, predict_G=True, ref_extent=ref_ext)
 
     return res_D, res_G, target_D, target_G
@@ -155,9 +154,9 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
         for i, batch in enumerate(trainloader):
             if device.type == 'cuda':
                 torch.cuda.empty_cache()
-            record, record_GD, query, target_G, target_D = batch['record'], batch['record_GD'], batch['query'], batch['target_G'], batch['target_D']
+            record, record_GD, record_GCRN, query, target_G, target_D = batch['record'], batch['record_GD'], batch['record_GCRN'], batch['query'], batch['target_G'], batch['target_D']
             if device:
-                record, record_GD, query, target_G, target_D = batch2device(record, record_GD, query, target_G, target_D, device)
+                record, record_GD, record_GCRN, query, target_G, target_D = batch2device(record, record_GD, record_GCRN, query, target_G, target_D, device)
 
             # Avoid exploding gradients
             torch.nn.utils.clip_grad_norm_(net.parameters(), max_norm=Config.MAX_NORM_DEFAULT)
@@ -221,9 +220,9 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                 for j, val_batch in enumerate(validloader):
                     if device.type == 'cuda':
                         torch.cuda.empty_cache()
-                    val_record, val_record_GD, val_query, val_target_G, val_target_D = val_batch['record'], val_batch['record_GD'], val_batch['query'], val_batch['target_G'], val_batch['target_D']
+                    val_record, val_record_GD, val_record_GCRN, val_query, val_target_G, val_target_D = val_batch['record'], val_batch['record_GD'], val_batch['record_GCRN'], val_batch['query'], val_batch['target_G'], val_batch['target_D']
                     if device:
-                        val_record, val_record_GD, val_query, val_target_G, val_target_D = batch2device(val_record, val_record_GD, val_query, val_target_G, val_target_D, device)
+                        val_record, val_record_GD, val_record_GCRN, val_query, val_target_G, val_target_D = batch2device(val_record, val_record_GD, val_record_GCRN, val_query, val_target_G, val_target_D, device)
 
                     if model in ['AR', 'LSTNet']:
                         val_res_D, val_res_G = net(val_record_GD)

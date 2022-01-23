@@ -75,13 +75,25 @@ class RSODPDataSetEntity(DGLDataset):
                 cur_sample_inputs[temp_feat] = temp_feat_sample_inputs
             cur_sample_GDs[temp_feat] = temp_feat_sample_GDs
 
+        # sample for GCRN
+        gcrn_inputs = []
+        for ts in cur_sample_ref['record']['St']:
+            GDVQ_ts = np.load(os.path.join(self.data_dir, str(ts), 'GDVQ.npy'), allow_pickle=True).item()
+            G_ts, D_ts, V_ts = torch.from_numpy(GDVQ_ts['G']), torch.from_numpy(GDVQ_ts['D']), torch.from_numpy(GDVQ_ts['V'])
+            FBG_path = os.path.join(self.data_dir, str(ts), 'FBGraphMix.dgl')
+            (fbgm_ts,), _ = dgl.load_graphs(FBG_path)
+            fbgm_ts.ndata['d'] = D_ts.reshape(-1, 1)
+            fbgm_ts.ndata['g'] = G_ts
+            gcrn_inputs.append(tuple([fbgm_ts]))
+
         cur_sample_data = {
             'T': cur_T,
             'target_G': G_Tp1,
             'target_D': D_Tp1,
             'query': Q_Tp1,
             'record': cur_sample_inputs,
-            'record_GD': cur_sample_GDs
+            'record_GD': cur_sample_GDs,
+            'record_GCRN': gcrn_inputs
         }
         return cur_sample_data
 

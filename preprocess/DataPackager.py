@@ -344,6 +344,9 @@ def handleRequestData(i, totalH, folder, lowT, df_split, export_requests, grid_i
     FNGraph, BNGraph = constructFBGraph(request_matrix, num_grid_nodes, mix=False)
     dgl.save_graphs(os.path.join(curDir, 'FBGraphs.dgl'), [FNGraph, BNGraph])
 
+    mixFBNGraph = constructFBGraph(request_matrix, num_grid_nodes, mix=True)
+    dgl.save_graphs(os.path.join(curDir, 'FBGraphMix.dgl'), mixFBNGraph)
+
     return request_matrix
 
 

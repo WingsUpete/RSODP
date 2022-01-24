@@ -5,7 +5,7 @@ from .SpatAttLayer import SpatAttLayer
 from .TempAttLayer import TempAttLayer
 from .TranAttLayer import TranAttLayer
 
-from Config import TEMP_FEAT_NAMES
+from Config import TEMP_FEAT_NAMES, GALLAT_FINAL_ACTIVATION_USE_SIGMOID
 
 
 class Gallat(nn.Module):
@@ -27,7 +27,10 @@ class Gallat(nn.Module):
         self.tempAttLayer = TempAttLayer(query_dim=self.query_dim, embed_dim=self.spat_embed_dim, rec_merge='sum', comb_merge='sum')
 
         # Transferring Attention Layer
-        self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim, activate_function_method='sigmoid')
+        self.final_activation_use_sigmoid = GALLAT_FINAL_ACTIVATION_USE_SIGMOID
+        self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim,
+                                         activate_function_method='sigmoid'if self.final_activation_use_sigmoid else
+                                         'linear')
 
     def forward(self, record, query, ref_D=None, ref_G=None, predict_G=False, ref_extent=0.2):
         # Extract spatial features

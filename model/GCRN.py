@@ -25,6 +25,8 @@ class GCRN(nn.Module):
         # Temporal Layer (GRU)
         self.tempLayer_D = nn.LSTM(input_size=self.spat_embed_dim, hidden_size=self.temp_embed_dim)
         self.tempLayer_G = nn.LSTM(input_size=self.spat_embed_dim, hidden_size=self.temp_embed_dim)
+        self.bn_D = nn.BatchNorm1d(num_features=self.temp_embed_dim)
+        self.bn_G = nn.BatchNorm1d(num_features=self.temp_embed_dim)
 
         # Transfer Function
         self.tran_d_l = nn.Linear(in_features=self.temp_embed_dim, out_features=1, bias=True)
@@ -55,17 +57,23 @@ class GCRN(nn.Module):
         # Extract temporal features
         o_D, (h_D, c_D) = self.tempLayer_D(spat_embed_t_D.reshape(num_records, -1, self.spat_embed_dim))
         temp_embed_t_D = h_D.reshape(-1, self.num_nodes, self.temp_embed_dim)
+        norm_temp_embed_t_D = self.bn_D(torch.transpose(temp_embed_t_D, -2, -1))
+        temp_embed_t_D = torch.transpose(norm_temp_embed_t_D, -2, -1)
         del spat_embed_t_D
         del o_D
         del h_D
         del c_D
+        del norm_temp_embed_t_D
 
         o_G, (h_G, c_G) = self.tempLayer_G(spat_embed_t_G.reshape(num_records, -1, self.spat_embed_dim))
         temp_embed_t_G = h_G.reshape(-1, self.num_nodes, self.temp_embed_dim)
+        norm_temp_embed_t_G = self.bn_G(torch.transpose(temp_embed_t_G, -2, -1))
+        temp_embed_t_G = torch.transpose(norm_temp_embed_t_G, -2, -1)
         del spat_embed_t_G
         del o_G
         del h_G
         del c_G
+        del norm_temp_embed_t_G
 
         if temp_embed_t_D.device.type == 'cuda':
             torch.cuda.empty_cache()

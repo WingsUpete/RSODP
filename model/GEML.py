@@ -23,6 +23,7 @@ class GEML(nn.Module):
 
         # Temporal Layer (GRU)
         self.tempLayer = nn.LSTM(input_size=self.spat_embed_dim, hidden_size=self.temp_embed_dim)
+        self.bn = nn.BatchNorm1d(num_features=self.temp_embed_dim)
 
         # Transfer Function
         self.tran_d_l = nn.Linear(in_features=self.temp_embed_dim, out_features=1, bias=True)
@@ -48,10 +49,13 @@ class GEML(nn.Module):
         # Extract temporal features
         o, (h, c) = self.tempLayer(spat_embed_p.reshape(num_records, -1, self.spat_embed_dim))
         temp_embed_p = h.reshape(-1, num_nodes, self.temp_embed_dim)
+        norm_temp_embed_p = self.bn(torch.transpose(temp_embed_p, -2, -1))
+        temp_embed_p = torch.transpose(norm_temp_embed_p, -2, -1)
         del spat_embed_p
         del o
         del h
         del c
+        del norm_temp_embed_p
 
         if temp_embed_p.device.type == 'cuda':
             torch.cuda.empty_cache()

@@ -5,7 +5,7 @@ from .SpatAttLayer import SpatAttLayer
 from .TempAttLayer import TempAttLayer
 from .TranAttLayer import TranAttLayer
 
-from Config import TEMP_FEAT_NAMES
+from Config import TEMP_FEAT_NAMES, REF_EXTENT
 
 
 class GallatExt(nn.Module):
@@ -31,7 +31,7 @@ class GallatExt(nn.Module):
         # Transferring Attention Layer
         self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim, activate_function_method='relu')
 
-    def forward(self, record, query, ref_D=None, ref_G=None, predict_G=False, ref_extent=0.2):
+    def forward(self, record, query, ref_D=None, ref_G=None, predict_G=False, ref_extent=REF_EXTENT):
         # Extract spatial features
         spat_embed_dict = {}
         for temp_feat in TEMP_FEAT_NAMES:
@@ -75,7 +75,7 @@ class GallatExtFull(nn.Module):
         # Transferring Attention Layer
         self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim, activate_function_method=None)
 
-    def forward(self, record, query, ref_D=None, ref_G=None, predict_G=False, ref_extent=0.2):
+    def forward(self, record, query, ref_D=None, ref_G=None, predict_G=False, ref_extent=REF_EXTENT):
         # Extract spatial features
         spat_embed_dict = {}
         for temp_feat in TEMP_FEAT_NAMES:

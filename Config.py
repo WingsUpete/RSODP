@@ -51,7 +51,7 @@ HA_FEAT_DEFAULT = 'all'     # ['all', 'tendency', 'periodicity']
 D_PERCENTAGE_DEFAULT = 0.5
 G_PERCENTAGE_DEFAULT = 1 - D_PERCENTAGE_DEFAULT
 
-REF_EXTENT = -1    # If -1, using scaling factor scheme; Else, a simple leverage (normally 0.2)
+REF_EXTENT = -1    # If -1, use scaling scheme; else if -2, use shifting scheme; Else, a simple leverage (normally 0.2)
 
 TRAIN_TYPES = ['normal', 'pretrain', 'retrain']
 TRAIN_TYPE_DEFAULT = 'normal'

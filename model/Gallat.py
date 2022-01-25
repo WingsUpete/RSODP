@@ -5,7 +5,7 @@ from .SpatAttLayer import SpatAttLayer
 from .TempAttLayer import TempAttLayer
 from .TranAttLayer import TranAttLayer
 
-from Config import TEMP_FEAT_NAMES, GALLAT_FINAL_ACTIVATION_USE_SIGMOID
+from Config import TEMP_FEAT_NAMES, GALLAT_FINAL_ACTIVATION_USE_SIGMOID, REF_EXTENT
 
 
 class Gallat(nn.Module):
@@ -32,7 +32,7 @@ class Gallat(nn.Module):
                                          activate_function_method='sigmoid'if self.final_activation_use_sigmoid else
                                          'linear')
 
-    def forward(self, record, query, ref_D=None, ref_G=None, predict_G=False, ref_extent=0.2):
+    def forward(self, record, query, ref_D=None, ref_G=None, predict_G=False, ref_extent=REF_EXTENT):
         # Extract spatial features
         spat_embed_dict = {}
         for temp_feat in TEMP_FEAT_NAMES:

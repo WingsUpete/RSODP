@@ -14,12 +14,12 @@ class GEML(nn.Module):
 
         self.num_dim = 2
 
-        self.spat_embed_dim = int(self.num_dim * self.hidden_dim)     # Embedding dimension after spatial feature extraction
+        self.spat_embed_dim = int((self.num_dim + 1) * self.hidden_dim)     # Embedding dimension after spatial feature extraction
         self.temp_embed_dim = self.spat_embed_dim   # Embedding dimension after temporal feature extraction
         self.tran_embed_dim = self.temp_embed_dim   # Embedding dimension after transition projection
 
         # Spatial Attention Layer
-        self.spatLayer = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=1, att=False, gate=False, merge='mean', num_dim=self.num_dim, cat_orig=False, use_pre_w=True)
+        self.spatLayer = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=1, att=False, gate=False, merge='mean', num_dim=self.num_dim, cat_orig=True, use_pre_w=True)
 
         # Temporal Layer (GRU)
         self.tempLayer = nn.LSTM(input_size=self.spat_embed_dim, hidden_size=self.temp_embed_dim)
@@ -48,7 +48,7 @@ class GEML(nn.Module):
 
         # Extract temporal features
         o, (h, c) = self.tempLayer(spat_embed_p.reshape(num_records, -1, self.spat_embed_dim))
-        temp_embed_p = h.reshape(-1, num_nodes, self.temp_embed_dim)
+        temp_embed_p = h.reshape(-1, num_nodes, self.temp_embed_dim) + torch.mean(spat_embed_p, dim=0)
         norm_temp_embed_p = self.bn(torch.transpose(temp_embed_p, -2, -1))
         temp_embed_p = torch.transpose(norm_temp_embed_p, -2, -1)
         del spat_embed_p

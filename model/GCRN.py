@@ -14,13 +14,13 @@ class GCRN(nn.Module):
 
         self.num_dim = 1
 
-        self.spat_embed_dim = int(self.num_dim * self.hidden_dim)     # Embedding dimension after spatial feature extraction
+        self.spat_embed_dim = int((self.num_dim + 1) * self.hidden_dim)     # Embedding dimension after spatial feature extraction
         self.temp_embed_dim = self.spat_embed_dim   # Embedding dimension after temporal feature extraction
         self.tran_embed_dim = self.temp_embed_dim   # Embedding dimension after transition projection
 
         # Spatial Attention Layer
-        self.spatLayer_D = SpatAttLayer(feat_dim=1, hidden_dim=self.hidden_dim, num_heads=1, att=False, gate=False, merge='mean', num_dim=self.num_dim, cat_orig=False, use_pre_w=False)
-        self.spatLayer_G = SpatAttLayer(feat_dim=self.num_nodes, hidden_dim=self.hidden_dim, num_heads=1, att=False, gate=False, merge='mean', num_dim=self.num_dim, cat_orig=False, use_pre_w=False)
+        self.spatLayer_D = SpatAttLayer(feat_dim=1, hidden_dim=self.hidden_dim, num_heads=1, att=False, gate=False, merge='mean', num_dim=self.num_dim, cat_orig=True, use_pre_w=False)
+        self.spatLayer_G = SpatAttLayer(feat_dim=self.num_nodes, hidden_dim=self.hidden_dim, num_heads=1, att=False, gate=False, merge='mean', num_dim=self.num_dim, cat_orig=True, use_pre_w=False)
 
         # Temporal Layer (GRU)
         self.tempLayer_D = nn.LSTM(input_size=self.spat_embed_dim, hidden_size=self.temp_embed_dim)
@@ -56,7 +56,7 @@ class GCRN(nn.Module):
 
         # Extract temporal features
         o_D, (h_D, c_D) = self.tempLayer_D(spat_embed_t_D.reshape(num_records, -1, self.spat_embed_dim))
-        temp_embed_t_D = h_D.reshape(-1, self.num_nodes, self.temp_embed_dim)
+        temp_embed_t_D = h_D.reshape(-1, self.num_nodes, self.temp_embed_dim) + torch.mean(spat_embed_t_D, dim=0)
         norm_temp_embed_t_D = self.bn_D(torch.transpose(temp_embed_t_D, -2, -1))
         temp_embed_t_D = torch.transpose(norm_temp_embed_t_D, -2, -1)
         del spat_embed_t_D
@@ -66,7 +66,7 @@ class GCRN(nn.Module):
         del norm_temp_embed_t_D
 
         o_G, (h_G, c_G) = self.tempLayer_G(spat_embed_t_G.reshape(num_records, -1, self.spat_embed_dim))
-        temp_embed_t_G = h_G.reshape(-1, self.num_nodes, self.temp_embed_dim)
+        temp_embed_t_G = h_G.reshape(-1, self.num_nodes, self.temp_embed_dim) + torch.mean(spat_embed_t_G, dim=0)
         norm_temp_embed_t_G = self.bn_G(torch.transpose(temp_embed_t_G, -2, -1))
         temp_embed_t_G = torch.transpose(norm_temp_embed_t_G, -2, -1)
         del spat_embed_t_G

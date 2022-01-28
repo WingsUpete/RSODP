@@ -42,6 +42,20 @@ def batch2res(batch, device, *args):
     return res_D, res_G, target_D, target_G
 
 
+def loadRefAR(ref_AR_path):
+    if ref_AR_path == 'None':
+        return None
+    if not os.path.exists(ref_AR_path):
+        sys.stderr.write('[TRAIN] The referenced AR model path %s is invalid!\n' % ref_AR_path)
+        exit(-55)
+    refAR = torch.load(ref_AR_path)
+    if refAR.__class__.__name__ != 'AR':
+        sys.stderr.write(
+            '[TRAIN] The referenced AR model is not an AR model (got %s)!\n' % refAR.__class__.__name__)
+        exit(-555)
+    return refAR
+
+
 def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Config.MAX_EPOCHS_DEFAULT,
           eval_freq=Config.EVAL_FREQ_DEFAULT, opt=Config.OPTIMIZER_DEFAULT, num_workers=Config.WORKERS_DEFAULT,
           use_gpu=True, gpu_id=Config.GPU_ID_DEFAULT,
@@ -73,6 +87,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     # Initialize the Model
     predict_G = (train_type != 'pretrain')
     task = 'OD' if predict_G else 'Demand'
+    refAR = loadRefAR(ref_AR_path)
     net = Gallat(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim)
     if train_type == 'retrain':
         logr.log('> Loading the Pretrained Model: {}, Train type = {}\n'.format(retrain_model_path, train_type))
@@ -88,13 +103,9 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
         elif model == 'AR':
             net = AR(p=Config.HISTORICAL_RECORDS_NUM_DEFAULT)
         elif model == 'LSTNet':
-            if not os.path.exists(ref_AR_path):
-                sys.stderr.write('[TRAIN] With LSTNet, the referenced AR model path %s is invalid!\n' % ref_AR_path)
+            if refAR is None:
+                sys.stderr.write('[TRAIN] The referenced AR model path %s is invalid for LSTNet!\n' % ref_AR_path)
                 exit(-55)
-            refAR = torch.load(ref_AR_path)
-            if refAR.__class__.__name__ != 'AR':
-                sys.stderr.write('[TRAIN] With LSTNet, the referenced AR model is not an AR model (got %s)!\n' % refAR.__class__.__name__)
-                exit(-555)
             net = LSTNet(p=Config.HISTORICAL_RECORDS_NUM_DEFAULT, refAR=refAR)
         elif model == 'GCRN':
             net = GCRN(num_nodes=dataset.grid_info['gridNum'], hidden_dim=hidden_dim)

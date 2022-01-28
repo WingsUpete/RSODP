@@ -70,3 +70,13 @@ python Trainer.py -dr data/ny2016_0101to0331/ -th 2184 -ts 1 -c 20 -gid 0 -m tra
 #python Trainer.py -dr data/ny2016_0101to0331/ -th 2184 -ts 1 -c 20 -gid 0 -m train -tt pretrain -net GallatExt -u 1
 #python Trainer.py -dr data/ny2016_0101to0331/ -th 2184 -ts 1 -c 20 -gid 0 -m train -tt retrain -r pretrained_model.pth -u 1
 #python Trainer.py -dr data/ny2016_0101to0331/ -th 2184 -ts 1 -c 20 -gid 0 -m eval -e eval.pth -u 1
+
+### GallatExt-5 (Shifting scheme) ###
+#python Trainer.py -dr data/ny2016_0101to0331/ -th 2184 -ts 1 -c 20 -gid 1 -m train -tt pretrain -net GallatExt -re -2
+#python Trainer.py -dr data/ny2016_0101to0331/ -th 2184 -ts 1 -c 20 -gid 0 -m train -tt retrain -r model_save/20211201_01_48_38.pth -re -2
+#python Trainer.py -dr data/ny2016_0101to0331/ -th 2184 -ts 1 -c 20 -gid 0 -m eval -e model_save/20211201_18_08_18.pth -re -2
+
+### GallatExt-6 (Tuning with AR) ###
+#python Trainer.py -dr data/ny2016_0101to0331/ -th 2184 -ts 1 -c 20 -gid 0 -m train -tt pretrain -net GallatExt -rar refAR.pth
+#python Trainer.py -dr data/ny2016_0101to0331/ -th 2184 -ts 1 -c 20 -gid 0 -m train -tt retrain -r pretrained_model.pth
+#python Trainer.py -dr data/ny2016_0101to0331/ -th 2184 -ts 1 -c 20 -gid 0 -m eval -e eval.pth

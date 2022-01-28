@@ -16,7 +16,6 @@ sys.stderr = stderr
 from utils import Logger, batch2device, plot_grad_flow, evalMetrics, genMetricsResStorage, aggrMetricsRes, wrapMetricsRes
 from RSODPDataSet import RSODPDataSet
 from model import Gallat, GallatExt, GallatExtFull, AR, LSTNet, GCRN, GEML
-from HistoricalAverage import avgRec
 
 import Config
 if Config.CHECK_GRADS:
@@ -24,7 +23,7 @@ if Config.CHECK_GRADS:
 
 
 def batch2res(batch, device, *args):
-    scheme, net, tune, ref_ext = args[-1]
+    net, tune, ref_ext = args[-1]
     record, record_GD, record_GCRN, query, target_G, target_D = batch['record'], batch['record_GD'], batch['record_GCRN'], batch['query'], batch['target_G'], batch['target_D']
     if device:
         record, record_GD, record_GCRN, query, target_G, target_D = batch2device(record, record_GD, record_GCRN, query, target_G, target_D, device)
@@ -36,8 +35,7 @@ def batch2res(batch, device, *args):
     elif net.__class__.__name__ == 'GEML':
         res_D, res_G = net(record['Sp'])
     else:
-        ref_D, ref_G = avgRec(record_GD, scheme=scheme) if tune else (None, None)
-        res_D, res_G = net(record, query, ref_D, ref_G, predict_G=True, ref_extent=ref_ext)
+        res_D, res_G = net(record, record_GD, query, predict_G=True, ref_extent=ref_ext)
 
     return res_D, res_G, target_D, target_G
 
@@ -95,11 +93,11 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     else:
         logr.log('> Initializing the Training Model: {}, Train type = {}\n'.format(model, train_type))
         if model == 'Gallat':
-            net = Gallat(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_dim=3)
+            net = Gallat(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_dim=3, tune=tune, ref_AR=refAR)
         elif model == 'GallatExt':
-            net = GallatExt(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_heads=Config.NUM_HEADS_DEFAULT, num_dim=3)
+            net = GallatExt(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_heads=Config.NUM_HEADS_DEFAULT, num_dim=3, tune=tune, ref_AR=refAR)
         elif model == 'GallatExtFull':
-            net = GallatExtFull(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_heads=Config.NUM_HEADS_DEFAULT, num_dim=3)
+            net = GallatExtFull(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim, num_heads=Config.NUM_HEADS_DEFAULT, num_dim=3, tune=tune, ref_AR=refAR)
         elif model == 'AR':
             net = AR(p=Config.HISTORICAL_RECORDS_NUM_DEFAULT)
         elif model == 'LSTNet':
@@ -152,7 +150,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     logr.log('\nlearning_rate = {}, epochs = {}, num_workers = {}\n'.format(lr, ep, num_workers))
     logr.log('eval_freq = {}, batch_size = {}, optimizer = {}\n'.format(eval_freq, bs, opt))
     if model in Config.NETWORKS_TUNABLE:
-        logr.log('tune = %s%s\n' % (str(tune), ", ref_extent = %.2f" % ref_ext.item() if tune else ""))
+        logr.log('tune = %s%s\n' % (str(tune), ", use_AR=%s, ref_extent = %.2f" % (ref_AR_path, ref_ext.item()) if tune else ""))
 
     # Start Training
     logr.log('\nStart Training!\n')
@@ -188,7 +186,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                         elif model == 'GEML':
                             res_D, res_G = net(record['Sp'])
                         else:
-                            res_D, res_G = net(record, query, predict_G=predict_G)   # if pretrain, res_G = None
+                            res_D, res_G = net(record, record_GD, query, predict_G=predict_G, ref_extent=ref_ext)  # if pretrain, res_G = None
                 logr.log(prof.key_averages().table(sort_by="cuda_time_total"))
                 exit(100)
 
@@ -199,8 +197,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
             elif model == 'GEML':
                 res_D, res_G = net(record['Sp'])
             else:
-                ref_D, ref_G = avgRec(record_GD) if tune else (None, None)
-                res_D, res_G = net(record, query, ref_D, ref_G, predict_G=predict_G, ref_extent=ref_ext)  # if pretrain, res_G = None
+                res_D, res_G = net(record, record_GD, query, predict_G=predict_G, ref_extent=ref_ext)  # if pretrain, res_G = None
 
             loss = (criterion_D(res_D, target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(res_G, target_G) * Config.G_PERCENTAGE_DEFAULT) if predict_G else criterion_D(res_D, target_D)
 
@@ -250,8 +247,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                     elif model == 'GEML':
                         val_res_D, val_res_G = net(val_record['Sp'])
                     else:
-                        val_ref_D, val_ref_G = avgRec(val_record_GD) if tune else (None, None)
-                        val_res_D, val_res_G = net(val_record, val_query, val_ref_D, val_ref_G, predict_G=predict_G, ref_extent=ref_ext)
+                        val_res_D, val_res_G = net(val_record, val_record_GD, val_query, predict_G=predict_G, ref_extent=ref_ext)
 
                     val_loss = criterion_D(val_res_D, val_target_D) * Config.D_PERCENTAGE_DEFAULT + criterion_G(val_res_G, val_target_G) * Config.G_PERCENTAGE_DEFAULT if predict_G else criterion_D(val_res_D, val_target_D)
 
@@ -325,10 +321,10 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
 
     net.eval()
     # 1.
-    evalMetrics(validloader, 'Validation', batch2res, device, logr, Config.HA_FEAT_DEFAULT, net, tune, ref_ext)
+    evalMetrics(validloader, 'Validation', batch2res, device, logr, net, tune, ref_ext)
 
     # 2.
-    evalMetrics(testloader, 'Test', batch2res, device, logr, Config.HA_FEAT_DEFAULT, net, tune, ref_ext)
+    evalMetrics(testloader, 'Test', batch2res, device, logr, net, tune, ref_ext)
 
     # End Evaluation
     logr.log('> Evaluation finished.\n')

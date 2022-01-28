@@ -4,12 +4,13 @@ import torch.nn as nn
 from .SpatAttLayer import SpatAttLayer
 from .TempAttLayer import TempAttLayer
 from .TranAttLayer import TranAttLayer
+from HistoricalAverage import avgRec
 
-from Config import TEMP_FEAT_NAMES, REF_EXTENT
+from Config import TEMP_FEAT_NAMES, REF_EXTENT, HA_FEAT_DEFAULT
 
 
 class GallatExt(nn.Module):
-    def __init__(self, feat_dim=43, query_dim=41, hidden_dim=16, num_heads=3, num_dim=3):
+    def __init__(self, feat_dim=43, query_dim=41, hidden_dim=16, num_heads=3, num_dim=3, tune=True, ref_AR=None):
         super(GallatExt, self).__init__()
         self.num_heads = num_heads
 
@@ -22,6 +23,10 @@ class GallatExt(nn.Module):
         self.spat_embed_dim = int((self.num_dim + 1) * self.hidden_dim)     # Embedding dimension after spatial feature extraction
         self.temp_embed_dim = self.spat_embed_dim   # Embedding dimension after temporal feature extraction
 
+        # Reference-based Tuning Block
+        self.tune = tune
+        self.ref_AR = ref_AR
+
         # Spatial Attention Layer
         self.spatAttLayer = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=self.num_heads, gate=True, merge='mean', num_dim=self.num_dim, cat_orig=True, use_pre_w=True)
 
@@ -31,7 +36,16 @@ class GallatExt(nn.Module):
         # Transferring Attention Layer
         self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim, activate_function_method='relu')
 
-    def forward(self, record, query, ref_D=None, ref_G=None, predict_G=False, ref_extent=REF_EXTENT):
+    def forward(self, record, record_GD, query, predict_G=False, ref_extent=REF_EXTENT):
+        # Calculate reference
+        if self.tune:
+            if self.ref_AR:
+                ref_D, ref_G = self.ref_AR(record_GD)
+            else:
+                ref_D, ref_G = avgRec(record_GD, scheme=HA_FEAT_DEFAULT)
+        else:
+            ref_D, ref_G = (None, None)
+
         # Extract spatial features
         spat_embed_dict = {}
         for temp_feat in TEMP_FEAT_NAMES:
@@ -53,7 +67,7 @@ class GallatExt(nn.Module):
 
 
 class GallatExtFull(nn.Module):
-    def __init__(self, feat_dim=43, query_dim=41, hidden_dim=16, num_heads=3, num_dim=3):
+    def __init__(self, feat_dim=43, query_dim=41, hidden_dim=16, num_heads=3, num_dim=3, tune=True, ref_AR=None):
         super(GallatExtFull, self).__init__()
         self.num_heads = num_heads
 
@@ -66,6 +80,10 @@ class GallatExtFull(nn.Module):
         self.spat_embed_dim = int((self.num_dim * self.num_heads + 1) * self.hidden_dim)    # Embedding dimension after spatial feature extraction
         self.temp_embed_dim = int(4 * self.spat_embed_dim)    # Embedding dimension after temporal feature extraction
 
+        # Reference-based Tuning Block
+        self.tune = tune
+        self.ref_AR = ref_AR
+
         # Spatial Attention Layer
         self.spatAttLayer = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=self.num_heads, gate=True, merge='cat', num_dim=self.num_dim, cat_orig=True, use_pre_w=True)
 
@@ -75,7 +93,16 @@ class GallatExtFull(nn.Module):
         # Transferring Attention Layer
         self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim, activate_function_method=None)
 
-    def forward(self, record, query, ref_D=None, ref_G=None, predict_G=False, ref_extent=REF_EXTENT):
+    def forward(self, record, record_GD, query, predict_G=False, ref_extent=REF_EXTENT):
+        # Calculate reference
+        if self.tune:
+            if self.ref_AR:
+                ref_D, ref_G = self.ref_AR(record_GD)
+            else:
+                ref_D, ref_G = avgRec(record_GD, scheme=HA_FEAT_DEFAULT)
+        else:
+            ref_D, ref_G = (None, None)
+
         # Extract spatial features
         spat_embed_dict = {}
         for temp_feat in TEMP_FEAT_NAMES:

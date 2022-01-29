@@ -150,7 +150,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     logr.log('\nlearning_rate = {}, epochs = {}, num_workers = {}\n'.format(lr, ep, num_workers))
     logr.log('eval_freq = {}, batch_size = {}, optimizer = {}\n'.format(eval_freq, bs, opt))
     if model in Config.NETWORKS_TUNABLE:
-        logr.log('tune = %s%s\n' % (str(tune), ", use_AR=%s, ref_extent = %.2f" % (ref_AR_path, ref_ext.item()) if tune else ""))
+        logr.log('tune = %s%s\n' % (str(tune), ", use_AR=%s, ref_extent = %.2f" % (net.ref_AR, ref_ext.item()) if tune else ""))
 
     # Start Training
     logr.log('\nStart Training!\n')

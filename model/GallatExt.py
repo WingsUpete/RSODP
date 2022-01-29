@@ -40,6 +40,7 @@ class GallatExt(nn.Module):
         # Calculate reference
         if self.tune:
             if self.ref_AR:
+                self.ref_AR.eval()
                 ref_D, ref_G = self.ref_AR(record_GD)
             else:
                 ref_D, ref_G = avgRec(record_GD, scheme=HA_FEAT_DEFAULT)
@@ -97,6 +98,7 @@ class GallatExtFull(nn.Module):
         # Calculate reference
         if self.tune:
             if self.ref_AR:
+                self.ref_AR.eval()
                 ref_D, ref_G = self.ref_AR(record_GD)
             else:
                 ref_D, ref_G = avgRec(record_GD, scheme=HA_FEAT_DEFAULT)

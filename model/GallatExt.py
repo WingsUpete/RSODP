@@ -3,10 +3,11 @@ import torch.nn as nn
 
 from .SpatAttLayer import SpatAttLayer
 from .TempAttLayer import TempAttLayer
+from .TempRecurrentLayer import TempRecurrentLayer
 from .TranAttLayer import TranAttLayer
 from HistoricalAverage import avgRec
 
-from Config import TEMP_FEAT_NAMES, REF_EXTENT, HA_FEAT_DEFAULT
+from Config import TEMP_FEAT_NAMES, REF_EXTENT, HA_FEAT_DEFAULT, GALLATEXT_TEMP_USE_ATT
 
 
 class GallatExt(nn.Module):
@@ -31,7 +32,8 @@ class GallatExt(nn.Module):
         self.spatAttLayer = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=self.num_heads, gate=True, merge='mean', num_dim=self.num_dim, cat_orig=True, use_pre_w=True)
 
         # Temporal Attention Layer
-        self.tempAttLayer = TempAttLayer(query_dim=self.query_dim, embed_dim=self.spat_embed_dim, rec_merge='mean', comb_merge='mean')
+        self.tempLayer = TempAttLayer(query_dim=self.query_dim, embed_dim=self.spat_embed_dim, rec_merge='mean', comb_merge='mean') \
+            if GALLATEXT_TEMP_USE_ATT else TempRecurrentLayer(embed_dim=self.spat_embed_dim)
 
         # Transferring Attention Layer
         self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim, activate_function_method='relu')
@@ -56,7 +58,8 @@ class GallatExt(nn.Module):
             torch.cuda.empty_cache()
 
         # Extract temporal features
-        temp_embed = self.tempAttLayer(query, spat_embed_dict)
+        temp_embed = self.tempLayer(query, spat_embed_dict) \
+            if GALLATEXT_TEMP_USE_ATT else self.tempLayer(spat_embed_dict)
 
         if query.device.type == 'cuda':
             torch.cuda.empty_cache()
@@ -89,7 +92,8 @@ class GallatExtFull(nn.Module):
         self.spatAttLayer = SpatAttLayer(feat_dim=self.feat_dim, hidden_dim=self.hidden_dim, num_heads=self.num_heads, gate=True, merge='cat', num_dim=self.num_dim, cat_orig=True, use_pre_w=True)
 
         # Temporal Attention Layer
-        self.tempAttLayer = TempAttLayer(query_dim=self.query_dim, embed_dim=self.spat_embed_dim, rec_merge='mean', comb_merge='cat')
+        self.tempLayer = TempAttLayer(query_dim=self.query_dim, embed_dim=self.spat_embed_dim, rec_merge='mean', comb_merge='cat') \
+            if GALLATEXT_TEMP_USE_ATT else TempRecurrentLayer(embed_dim=self.spat_embed_dim)
 
         # Transferring Attention Layer
         self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim, activate_function_method=None)
@@ -114,7 +118,8 @@ class GallatExtFull(nn.Module):
             torch.cuda.empty_cache()
 
         # Extract temporal features
-        temp_embed = self.tempAttLayer(query, spat_embed_dict)
+        temp_embed = self.tempLayer(query, spat_embed_dict) \
+            if GALLATEXT_TEMP_USE_ATT else self.tempLayer(spat_embed_dict)
 
         if query.device.type == 'cuda':
             torch.cuda.empty_cache()

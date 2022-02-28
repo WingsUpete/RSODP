@@ -33,7 +33,7 @@ class GallatExt(nn.Module):
 
         # Temporal Attention Layer
         self.tempLayer = TempAttLayer(query_dim=self.query_dim, embed_dim=self.spat_embed_dim, rec_merge='mean', comb_merge='mean') \
-            if GALLATEXT_TEMP_USE_ATT else TempRecurrentLayer(embed_dim=self.spat_embed_dim)
+            if GALLATEXT_TEMP_USE_ATT else TempRecurrentLayer(embed_dim=self.spat_embed_dim, merge='mean')
 
         # Transferring Attention Layer
         self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim, activate_function_method='relu')
@@ -93,7 +93,7 @@ class GallatExtFull(nn.Module):
 
         # Temporal Attention Layer
         self.tempLayer = TempAttLayer(query_dim=self.query_dim, embed_dim=self.spat_embed_dim, rec_merge='mean', comb_merge='cat') \
-            if GALLATEXT_TEMP_USE_ATT else TempRecurrentLayer(embed_dim=self.spat_embed_dim)
+            if GALLATEXT_TEMP_USE_ATT else TempRecurrentLayer(embed_dim=self.spat_embed_dim, merge='cat')
 
         # Transferring Attention Layer
         self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim, activate_function_method=None)

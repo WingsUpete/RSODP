@@ -2,6 +2,7 @@ import os
 import sys
 import argparse
 import time
+import random
 
 import torch
 import torch.nn as nn
@@ -368,6 +369,11 @@ if __name__ == '__main__':
     parser.add_argument('-re', '--ref_extent', type=float, default=Config.REF_EXTENT, help='The extent of referenced value in the tuning block of Transferring Layer, default = {}'.format(Config.REF_EXTENT))
 
     FLAGS, unparsed = parser.parse_known_args()
+
+    # Controls reproducibility
+    if Config.RAND_SEED:
+        random.seed(Config.RAND_SEED)
+        torch.manual_seed(Config.RAND_SEED)
 
     # Starts a log file in the specified directory
     logger = Logger(activate=True, logging_folder=FLAGS.log_dir) if FLAGS.log_dir else Logger(activate=False)

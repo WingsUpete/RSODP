@@ -79,7 +79,7 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
                            unify_FB=unify_FB, mix_FB=mix_FB)
     trainloader = GraphDataLoader(dataset.train_set, batch_size=bs, shuffle=True, num_workers=num_workers)
     validloader = GraphDataLoader(dataset.valid_set, batch_size=bs, shuffle=False, num_workers=num_workers)
-    logr.log('> Total Hours: {}, starting from {}\n'.format(total_H, start_H))
+    logr.log('> Total Hours: {}, starting from {}\n'.format(dataset.total_H, dataset.start_at))
     logr.log('> Unify FB Graphs: {}, Mix FB Graphs: {}\n'.format(unify_FB, mix_FB))
     logr.log('> Training batches: {}, Validation batches: {}\n'.format(len(trainloader), len(validloader)))
 
@@ -309,6 +309,7 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
                            unify_FB=unify_FB, mix_FB=mix_FB)
     validloader = GraphDataLoader(dataset.valid_set, batch_size=bs, shuffle=False, num_workers=num_workers)
     testloader = GraphDataLoader(dataset.test_set, batch_size=bs, shuffle=False, num_workers=num_workers)
+    logr.log('> Total Hours: {}, starting from {}\n'.format(dataset.total_H, dataset.start_at))
     logr.log('> Unify FB Graphs: {}, Mix FB Graphs: {}\n'.format(unify_FB, mix_FB))
     logr.log('> Validation batches: {}, Test batches: {}\n'.format(len(validloader), len(testloader)))
 

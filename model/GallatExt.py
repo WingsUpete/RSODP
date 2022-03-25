@@ -36,7 +36,7 @@ class GallatExt(nn.Module):
             if GALLATEXT_TEMP_USE_ATT else TempRecurrentLayer(embed_dim=self.spat_embed_dim, merge='mean')
 
         # Transferring Attention Layer
-        self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim, activate_function_method='relu')
+        self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim)
 
     def forward(self, record, record_GD, query, predict_G=False, ref_extent=REF_EXTENT):
         # Calculate reference
@@ -96,7 +96,7 @@ class GallatExtFull(nn.Module):
             if GALLATEXT_TEMP_USE_ATT else TempRecurrentLayer(embed_dim=self.spat_embed_dim, merge='cat')
 
         # Transferring Attention Layer
-        self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim, activate_function_method=None)
+        self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim)
 
     def forward(self, record, record_GD, query, predict_G=False, ref_extent=REF_EXTENT):
         # Calculate reference

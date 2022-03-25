@@ -34,8 +34,8 @@ class Gallat(nn.Module):
         # Transferring Attention Layer
         self.final_activation_use_sigmoid = GALLAT_FINAL_ACTIVATION_USE_SIGMOID
         self.tranAttLayer = TranAttLayer(embed_dim=self.temp_embed_dim,
-                                         activate_function_method='sigmoid'if self.final_activation_use_sigmoid else
-                                         'linear')
+                                         activate_function_method='sigmoid' if self.final_activation_use_sigmoid else
+                                         None, d2g=True)
 
     def forward(self, record, record_GD, query, predict_G=False, ref_extent=REF_EXTENT):
         # Calculate reference

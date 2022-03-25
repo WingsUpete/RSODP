@@ -371,13 +371,14 @@ if __name__ == '__main__':
 
     FLAGS, unparsed = parser.parse_known_args()
 
+    # Starts a log file in the specified directory
+    logger = Logger(activate=True, logging_folder=FLAGS.log_dir) if FLAGS.log_dir else Logger(activate=False)
+
     # Controls reproducibility
     if Config.RAND_SEED:
         random.seed(Config.RAND_SEED)
         torch.manual_seed(Config.RAND_SEED)
-
-    # Starts a log file in the specified directory
-    logger = Logger(activate=True, logging_folder=FLAGS.log_dir) if FLAGS.log_dir else Logger(activate=False)
+        logger.log('> Seed: %d\n' % Config.RAND_SEED)
 
     working_mode = FLAGS.mode
     if working_mode == 'train':

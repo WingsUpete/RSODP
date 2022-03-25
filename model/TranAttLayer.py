@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 
 class TranAttLayer(nn.Module):
-    def __init__(self, embed_dim, activate_function_method='sigmoid'):
+    def __init__(self, embed_dim, activate_function_method=None, d2g=False):
         super(TranAttLayer, self).__init__()
         self.embed_dim = embed_dim
 
@@ -12,8 +12,8 @@ class TranAttLayer(nn.Module):
         self.demand_fc = nn.Linear(self.embed_dim, 1, bias=True)
 
         self.activate_function_method = activate_function_method
-        self.activate_function = nn.Sigmoid()
-        gain_val = nn.init.calculate_gain('sigmoid')
+        self.activate_function = None
+        gain_val = nn.init.calculate_gain('linear')
         if self.activate_function_method == 'sigmoid':
             self.activate_function = nn.Sigmoid()
             gain_val = nn.init.calculate_gain('sigmoid')
@@ -37,6 +37,8 @@ class TranAttLayer(nn.Module):
         self.att_out_fc_l = nn.Linear(self.embed_dim, 1, bias=False)
         self.att_out_fc_r = nn.Linear(self.embed_dim, 1, bias=False)
 
+        self.d2g = d2g
+
         self.reset_parameters(gain=gain_val)
 
     def reset_parameters(self, gain):
@@ -49,7 +51,7 @@ class TranAttLayer(nn.Module):
         nn.init.xavier_normal_(self.att_out_fc_l.weight, gain=gain)
         nn.init.xavier_normal_(self.att_out_fc_r.weight, gain=gain)
 
-    def predict_request_graphs(self, embed_feat, ref_G=None, ref_extent=0.2):
+    def predict_request_graphs(self, embed_feat, demands=None, ref_G=None, ref_extent=0.2):
         num_nodes = embed_feat.shape[-2]
         proj_embed_feat = self.Wa(embed_feat)
 
@@ -64,6 +66,12 @@ class TranAttLayer(nn.Module):
         del er
         del el_exp
         del er_exp
+
+        A = F.leaky_relu(A)
+        if demands:
+            Q = F.softmax(A, dim=-1)
+            rel_D = demands.repeat(1, 1, num_nodes)
+            A = Q * rel_D
 
         G = A
         if ref_G is not None:
@@ -98,7 +106,7 @@ class TranAttLayer(nn.Module):
 
         if predict_G:
             # Predict Request Graph
-            req_gs = self.predict_request_graphs(embed_feat, ref_G=ref_G, ref_extent=ref_extent)
+            req_gs = self.predict_request_graphs(embed_feat, demands=(demands if self.d2g else None), ref_G=ref_G, ref_extent=ref_extent)
             del demands
             return demands_out, req_gs
         else:

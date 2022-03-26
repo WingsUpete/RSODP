@@ -4,7 +4,7 @@ ulimit -n 65535
 ### Preprocess ###
 cd preprocess/
 python DataPackager.py -d ny2016_0101to0331.csv --minLat 40.4944 --maxLat 40.9196 --minLng -74.2655 --maxLng -73.6957 --refGridH 2.5 --refGridW 2.5 -er 0 -od ../data/ -c 20
-python DataPackager.py -d dc2017_0101to0331.csv --minLat 38.7919 --maxLat 38.9960 --minLng -77.1200 --maxLng -76.9093--refGridH 2.5 --refGridW 2.5 -er 0 -od ../data/ -c 20
+python DataPackager.py -d dc2017_0101to0331.csv --minLat 38.7919 --maxLat 38.9960 --minLng -77.1200 --maxLng -76.9093 --refGridH 2.5 --refGridW 2.5 -er 0 -od ../data/ -c 20
 cd ../
 
 ### GallatExt ###

@@ -19,6 +19,7 @@ WORKERS_DEFAULT = 36
 USE_GPU_DEFAULT = 1
 GPU_ID_DEFAULT = 0
 NETWORK_DEFAULT = 'GallatExt'
+TAG_DEFAULT = 'RefGaaRN'
 NETWORKS = ['Gallat', 'GallatExt', 'GallatExtFull', 'AR', 'LSTNet', 'GCRN', 'GEML']
 NETWORKS_TUNABLE = ['Gallat', 'GallatExt', 'GallatExtFull']
 REF_AR_DEFAULT = 'None'  # should be an AR model file name

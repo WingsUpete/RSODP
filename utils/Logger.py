@@ -12,9 +12,10 @@ if not os.path.isdir(LOGGING_FOLDER):
 
 
 class Logger:
-    def __init__(self, activate=True, logging_folder=LOGGING_FOLDER):
+    def __init__(self, activate=True, logging_folder=LOGGING_FOLDER, comment=None):
         self.activate = activate
         self.time_tag = datetime.now().strftime("%Y%m%d_%H_%M_%S")
+        self.comment = comment
         if self.activate:
             self.logger = logging.getLogger()
             self.logger.setLevel(logging.DEBUG)
@@ -23,7 +24,7 @@ class Logger:
                 os.mkdir(self.logging_folder)
 
             # Create a File Handler
-            fName = '{}.log'.format(self.time_tag)
+            fName = ('%s_%s.log' % (self.time_tag, self.comment)) if self.comment else ('%s.log' % self.time_tag)
 
             self.f_handler = logging.FileHandler(os.path.join(self.logging_folder, fName))
             self.f_handler.terminator = ''

@@ -67,8 +67,8 @@ class TranAttLayer(nn.Module):
         del el_exp
         del er_exp
 
-        A = F.leaky_relu(A)
         if demands:
+            A = F.leaky_relu(A)
             Q = F.softmax(A, dim=-1)
             rel_D = demands.repeat(1, 1, num_nodes)
             A = Q * rel_D

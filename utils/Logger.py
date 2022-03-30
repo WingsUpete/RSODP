@@ -24,7 +24,7 @@ class Logger:
                 os.mkdir(self.logging_folder)
 
             # Create a File Handler
-            fName = ('%s_%s.log' % (self.time_tag, self.comment)) if self.comment else ('%s.log' % self.time_tag)
+            fName = ('%s_%s.log' % (self.comment, self.time_tag)) if self.comment else ('%s.log' % self.time_tag)
 
             self.f_handler = logging.FileHandler(os.path.join(self.logging_folder, fName))
             self.f_handler.terminator = ''

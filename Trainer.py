@@ -373,7 +373,7 @@ if __name__ == '__main__':
     FLAGS, unparsed = parser.parse_known_args()
 
     # Starts a log file in the specified directory
-    logger = Logger(activate=True, logging_folder=FLAGS.log_dir, comment='%s_%s' % (FLAGS.tag.lower(), FLAGS.mode)) \
+    logger = Logger(activate=True, logging_folder=FLAGS.log_dir, comment='%s_%s' % (FLAGS.tag, FLAGS.mode)) \
         if FLAGS.log_dir else Logger(activate=False)
 
     # Controls reproducibility

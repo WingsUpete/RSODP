@@ -356,7 +356,7 @@ if __name__ == '__main__':
     parser.add_argument('-gid', '--gpu_id', type=int, default=Config.GPU_ID_DEFAULT, help='Specify which GPU to use, default = {}'.format(Config.GPU_ID_DEFAULT))
     parser.add_argument('-net', '--network', type=str, default=Config.NETWORK_DEFAULT,  help='Specify which model/network to use, default = {}'.format(Config.NETWORK_DEFAULT))
     parser.add_argument('-rar', '--ref_ar', type=str, default=Config.REF_AR_DEFAULT, help='Specify the location of the saved AR model to be used as a reference for training LSTNet, default = {}'.format(Config.REF_AR_DEFAULT))
-    parser.add_argument('-m', '--mode', type=str, default=Config.MODE_DEFAULT, help='Specify which mode the discriminator runs in (train, eval), default = {}'.format(Config.MODE_DEFAULT))
+    parser.add_argument('-m', '--mode', type=str, default=Config.MODE_DEFAULT, help='Specify which mode the discriminator runs in (train, eval, trainNeval), default = {}'.format(Config.MODE_DEFAULT))
     parser.add_argument('-e', '--eval', type=str, default=Config.EVAL_DEFAULT, help='Specify the location of saved network to be loaded for evaluation, default = {}'.format(Config.EVAL_DEFAULT))
     parser.add_argument('-md', '--model_save_dir', type=str, default=Config.MODEL_SAVE_DIR_DEFAULT, help='Specify the location of network to be saved, default = {}'.format(Config.MODEL_SAVE_DIR_DEFAULT))
     parser.add_argument('-tt', '--train_type', type=str, default=Config.TRAIN_TYPE_DEFAULT, help='Specify train mode [normal, pretrain, retrain], default = {}'.format(Config.TRAIN_TYPE_DEFAULT))
@@ -411,7 +411,32 @@ if __name__ == '__main__':
                  unify_FB=(FLAGS.ufb == 1), mix_FB=(FLAGS.mfb == 1),
                  tune=(FLAGS.tune == 1), ref_ext=FLAGS.ref_extent)
         logger.close()
+    elif working_mode == 'trainNeval':
+        # First train then eval
+        train(lr=FLAGS.learning_rate, bs=FLAGS.batch_size, ep=FLAGS.max_epochs,
+              eval_freq=FLAGS.eval_freq, opt=FLAGS.optimizer, num_workers=FLAGS.cores,
+              use_gpu=(FLAGS.gpu == 1), gpu_id=FLAGS.gpu_id,
+              data_dir=FLAGS.data_dir, logr=logger,
+              unify_FB=(FLAGS.ufb == 1), mix_FB=(FLAGS.mfb == 1),
+              model=FLAGS.network, ref_AR_path=FLAGS.ref_ar,
+              model_save_dir=FLAGS.model_save_dir, train_type=FLAGS.train_type,
+              metrics_threshold=torch.Tensor([FLAGS.metrics_threshold]),
+              total_H=FLAGS.hours, start_H=FLAGS.start_hour, hidden_dim=FLAGS.hidden_dim,
+              feat_dim=FLAGS.feature_dim, query_dim=FLAGS.query_dim,
+              retrain_model_path=FLAGS.retrain_model_path, loss_function=FLAGS.loss_function,
+              tune=(FLAGS.tune == 1), ref_ext=FLAGS.ref_extent)
+
+        saved_model_path = os.path.join(Config.MODEL_SAVE_DIR_DEFAULT, '%s.pth' % logger.time_tag)
+        logger.log('\n')
+
+        evaluate(saved_model_path, bs=FLAGS.batch_size, num_workers=FLAGS.cores,
+                 use_gpu=(FLAGS.gpu == 1), gpu_id=FLAGS.gpu_id,
+                 data_dir=FLAGS.data_dir, logr=logger, total_H=FLAGS.hours, start_H=FLAGS.start_hour,
+                 unify_FB=(FLAGS.ufb == 1), mix_FB=(FLAGS.mfb == 1),
+                 tune=(FLAGS.tune == 1), ref_ext=FLAGS.ref_extent)
+
+        logger.close()
     else:
-        sys.stderr.write('Please specify the running mode (train/eval)\n')
+        sys.stderr.write('Please specify the running mode (train/eval/trainNeval)\n')
         logger.close()
         exit(-2)

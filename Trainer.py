@@ -41,13 +41,13 @@ def batch2res(batch, device, *args):
     return res_D, res_G, target_D, target_G
 
 
-def loadRefAR(ref_AR_path):
+def loadRefAR(ref_AR_path, device):
     if ref_AR_path == 'None':
         return None
     if not os.path.exists(ref_AR_path):
         sys.stderr.write('[TRAIN] The referenced AR model path %s is invalid!\n' % ref_AR_path)
         exit(-55)
-    refAR = torch.load(ref_AR_path)
+    refAR = torch.load(ref_AR_path, map_location=device)
     if refAR.__class__.__name__ != 'AR':
         sys.stderr.write(
             '[TRAIN] The referenced AR model is not an AR model (got %s)!\n' % refAR.__class__.__name__)
@@ -86,11 +86,11 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     # Initialize the Model
     predict_G = (train_type != 'pretrain')
     task = 'OD' if predict_G else 'Demand'
-    refAR = loadRefAR(ref_AR_path)
+    refAR = loadRefAR(ref_AR_path, device)
     net = Gallat(feat_dim=feat_dim, query_dim=query_dim, hidden_dim=hidden_dim)
     if train_type == 'retrain':
         logr.log('> Loading the Pretrained Model: {}, Train type = {}\n'.format(retrain_model_path, train_type))
-        net = torch.load(retrain_model_path)
+        net = torch.load(retrain_model_path, map_location=device)
     else:
         logr.log('> Initializing the Training Model: {}, Train type = {}\n'.format(model, train_type))
         if model == 'Gallat':
@@ -293,7 +293,7 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
 
     # Load Model
     logr.log('> Loading {}\n'.format(model_name))
-    net = torch.load(model_name)
+    net = torch.load(model_name, map_location=device)
     logr.log('> Model Structure:\n{}\n'.format(net))
 
     if device:

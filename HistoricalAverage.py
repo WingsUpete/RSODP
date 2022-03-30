@@ -110,10 +110,13 @@ if __name__ == '__main__':
     parser.add_argument('-gpu', '--gpu', type=int, default=Config.USE_GPU_DEFAULT, help='Specify whether to use GPU, default = {}'.format(Config.USE_GPU_DEFAULT))
     parser.add_argument('-gid', '--gpu_id', type=int, default=Config.GPU_ID_DEFAULT, help='Specify which GPU to use, default = {}'.format(Config.GPU_ID_DEFAULT))
     parser.add_argument('-sch', '--scheme', type=str, default=Config.HA_FEAT_DEFAULT, help='Specify HA scheme, default = {}'.format(Config.HA_FEAT_DEFAULT))
+    parser.add_argument('-tag', '--tag', type=str, default=Config.TAG_DEFAULT, help='Name tag for the model, default = {}'.format(Config.TAG_DEFAULT))
+
     FLAGS, unparsed = parser.parse_known_args()
 
     # Starts a log file in the specified directory
-    logger = Logger(activate=True, logging_folder=FLAGS.log_dir) if FLAGS.log_dir else Logger(activate=False)
+    logger = Logger(activate=True, logging_folder=FLAGS.log_dir, comment=FLAGS.tag) \
+        if FLAGS.log_dir else Logger(activate=False)
 
     # HA
     HA(bs=FLAGS.batch_size, num_workers=FLAGS.cores, logr=logger, use_gpu=(FLAGS.gpu == 1), gpu_id=FLAGS.gpu_id,

@@ -1,6 +1,6 @@
 import os
 import argparse
-from Config import METRICS_FOR_WHAT, METRICS_NAME, EVAL_METRICS_THRESHOLD_SET
+from Config import METRICS_FOR_WHAT, METRICS_NAME, EVAL_METRICS_THRESHOLD_SET, MODELS_TO_EXAMINE
 
 LOG_IN_DIR_DEFAULT = './dc_dataset/'
 DS_TAG_DEFAULT = 'dataset'
@@ -112,21 +112,24 @@ def renderTable(t_records: dict, ds_tag: str):
         # Table Content
         for task in METRICS_FOR_WHAT:
             start = True
-            for model in t_records:
-                cur_str = ''
-                if start:
-                    cur_str += '\\multirow{%d}{*}{%s} & ' % (num_models, task)
-                    start = False
-                else:
+            for model_set in MODELS_TO_EXAMINE:
+                for model in model_set:
+                    if model not in t_records:
+                        continue
+                    cur_str = ''
+                    if start:
+                        cur_str += '\\multirow{%d}{*}{%s} & ' % (num_models, task)
+                        start = False
+                    else:
+                        if model == 'RefGaaRN':
+                            cur_str += '\\cline{2-%d}\n' % (2 + len(EVAL_METRICS_THRESHOLD_SET))
+                        cur_str += '& '
+                    cur_str += '%s & ' % model + \
+                               ' & '.join(['%s' % t_records[model][metrics][task][str(threshold)] for threshold in EVAL_METRICS_THRESHOLD_SET]) + \
+                               ' \\\\\n'
                     if model == 'RefGaaRN':
                         cur_str += '\\cline{2-%d}\n' % (2 + len(EVAL_METRICS_THRESHOLD_SET))
-                    cur_str += '& '
-                cur_str += '%s & ' % model + \
-                           ' & '.join(['%s' % t_records[model][metrics][task][str(threshold)] for threshold in EVAL_METRICS_THRESHOLD_SET]) + \
-                           ' \\\\\n'
-                if model == 'RefGaaRN':
-                    cur_str += '\\cline{2-%d}\n' % (2 + len(EVAL_METRICS_THRESHOLD_SET))
-                render_str += cur_str
+                    render_str += cur_str
             render_str += '\\hline\n'
         # Table Meta End
         render_str += '\\end{tabular}\n' + \

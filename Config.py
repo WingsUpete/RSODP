@@ -71,6 +71,13 @@ METRICS_NAME = ['RMSE', 'MAPE', 'MAE']
 
 METRICS_FOR_WHAT = ['Demand', 'OD']
 
+MODELS_TO_EXAMINE = [
+    ['HAplus', 'HAt', 'HAp', 'AR'],                                         # baseline
+    ['LSTNet', 'GCRN', 'GEML', 'Gallat'],                                   # others
+    ['RefGaaRN'],                                                           # ours
+    ['RefGaaRNNoTune', 'RefGaaRNConcat', 'RefGaaRNWSum', 'RefGaaRNShift']   # variants
+]
+
 GALLAT_FINAL_ACTIVATION_USE_SIGMOID = True
 
 GALLATEXT_TEMP_USE_ATT = False

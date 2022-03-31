@@ -71,10 +71,12 @@ METRICS_NAME = ['RMSE', 'MAPE', 'MAE']
 
 METRICS_FOR_WHAT = ['Demand', 'OD']
 
+OUR_MODEL = 'RefGaaRN'
+
 MODELS_TO_EXAMINE = [
     ['HAplus', 'HAt', 'HAp', 'AR'],                                         # baseline
     ['LSTNet', 'GCRN', 'GEML', 'Gallat'],                                   # others
-    ['RefGaaRN'],                                                           # ours
+    [OUR_MODEL],                                                            # ours
     ['RefGaaRNNoTune', 'RefGaaRNConcat', 'RefGaaRNWSum', 'RefGaaRNShift']   # variants
 ]
 

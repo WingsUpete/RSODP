@@ -1,6 +1,6 @@
 import os
 import argparse
-from Config import METRICS_FOR_WHAT, METRICS_NAME, EVAL_METRICS_THRESHOLD_SET, MODELS_TO_EXAMINE
+from Config import METRICS_FOR_WHAT, METRICS_NAME, EVAL_METRICS_THRESHOLD_SET, OUR_MODEL, MODELS_TO_EXAMINE
 
 LOG_IN_DIR_DEFAULT = './dc_dataset/'
 DS_TAG_DEFAULT = 'dataset'
@@ -121,13 +121,16 @@ def renderTable(t_records: dict, ds_tag: str):
                         cur_str += '\\multirow{%d}{*}{%s} & ' % (num_models, task)
                         start = False
                     else:
-                        if model == 'RefGaaRN':
+                        if model == OUR_MODEL:
                             cur_str += '\\cline{2-%d}\n' % (2 + len(EVAL_METRICS_THRESHOLD_SET))
                         cur_str += '& '
-                    cur_str += '%s & ' % model + \
-                               ' & '.join(['%s' % t_records[model][metrics][task][str(threshold)] for threshold in EVAL_METRICS_THRESHOLD_SET]) + \
+                    cur_str += ('\\underline{%s} & ' if model == OUR_MODEL else '%s & ') % model
+                    cur_str += ' & '.join(['%s' % ('\\textbf{%s}' % t_records[model][metrics][task][str(threshold)]
+                                                   if model == OUR_MODEL
+                                                   else t_records[model][metrics][task][str(threshold)])
+                                           for threshold in EVAL_METRICS_THRESHOLD_SET]) + \
                                ' \\\\\n'
-                    if model == 'RefGaaRN':
+                    if model == OUR_MODEL:
                         cur_str += '\\cline{2-%d}\n' % (2 + len(EVAL_METRICS_THRESHOLD_SET))
                     render_str += cur_str
             render_str += '\\hline\n'
@@ -152,6 +155,6 @@ if __name__ == '__main__':
     total_records = summarizeRecInDir(FLAGS.in_dir)
     tables = renderTable(total_records, FLAGS.ds_tag)
     for metrics in tables:
-        print(metrics)
+        # print(metrics)
         print(tables[metrics])
         print()

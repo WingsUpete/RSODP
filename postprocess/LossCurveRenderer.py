@@ -1,5 +1,10 @@
 import os
+import argparse
 import matplotlib.pyplot as plt
+
+
+LOG_FN_DEFAULT = 'dc_dataset/RefGaaRN_trainNeval_20220330_17_46_22.log'
+OUT_DIR_DEFAULT = './'
 
 
 def path2FileNameWithoutExt(path):
@@ -8,13 +13,17 @@ def path2FileNameWithoutExt(path):
     :param path: file path
     :return: file name without extension
     """
-    return os.path.splitext(path)[0]
+    return os.path.splitext(os.path.basename(path))[0]
 
 
-def trainLog2LossCurve(logfn='train.log'):
+def trainLog2LossCurve(logfn=LOG_FN_DEFAULT, outdir=OUT_DIR_DEFAULT):
     if not os.path.isfile(logfn):
         print('{} is not a valid file.'.format(logfn))
         exit(-1)
+
+    if not os.path.isdir(outdir):
+        print('{} is not a valid directory.'.format(outdir))
+        exit(-2)
 
     x_epoch = []
     y_loss_train = []
@@ -49,7 +58,7 @@ def trainLog2LossCurve(logfn='train.log'):
     plt.ylabel('Loss')
     plt.legend(loc='upper right')
     # plt.show()
-    figpath = '{}.png'.format(path2FileNameWithoutExt(logfn))
+    figpath = os.path.join(outdir, '{}.png'.format(path2FileNameWithoutExt(logfn)))
     plt.savefig(figpath)
     print('Loss curve saved to {}'.format(figpath))
 
@@ -58,4 +67,14 @@ def trainLog2LossCurve(logfn='train.log'):
 
 # Test
 if __name__ == '__main__':
-    trainLog2LossCurve(logfn='dc_dataset/RefGaaRN_trainNeval_20220330_17_46_22.log')
+    """ 
+        Usage Example:
+        python LossCurveRenderer.py -i dc_dataset/RefGaaRN_trainNeval_20220330_17_46_22.log -o ./
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-i', '--in_log', type=str, default=LOG_FN_DEFAULT, help='The path of the input log file, default = {}'.format(LOG_FN_DEFAULT))
+    parser.add_argument('-od', '--out_dir', type=str, default=OUT_DIR_DEFAULT, help='The directory to store the output picture, default = {}'.format(OUT_DIR_DEFAULT))
+
+    FLAGS, unparsed = parser.parse_known_args()
+
+    trainLog2LossCurve(logfn=FLAGS.in_log)

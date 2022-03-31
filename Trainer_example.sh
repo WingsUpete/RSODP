@@ -60,19 +60,19 @@ python Trainer.py -dr $datapath -c 20 -gid 0 -m trainNeval -net GallatExt -tag R
 
 ##### Variants #####
 ### GallatExt-1 (No tuning) ###
-#python Trainer.py -dr $datapath -c 20 -gid 0 -m trainNeval -net GallatExt -t 0 -tag GallatExt1
-#python Trainer.py -dr $datapath -c 20 -gid 0 -m train -net GallatExt -t 0 -tag GallatExt1
-#python Trainer.py -dr $datapath -c 20 -gid 0 -m eval -e eval.pth -tag GallatExt1
+#python Trainer.py -dr $datapath -c 20 -gid 0 -m trainNeval -net GallatExt -t 0 -tag RefGaaRNNoTune
+#python Trainer.py -dr $datapath -c 20 -gid 0 -m train -net GallatExt -t 0 -tag RefGaaRNNoTune
+#python Trainer.py -dr $datapath -c 20 -gid 0 -m eval -e eval.pth -tag RefGaaRNNoTune
 
 ### GallatExt-2 (Concatenation scheme) ###
-#python Trainer.py -dr $datapath -c 20 -gid 0 -m trainNeval -net GallatExtFull -tag GallatExt2
-#python Trainer.py -dr $datapath -c 20 -gid 0 -m train -net GallatExtFull -tag GallatExt2
-#python Trainer.py -dr $datapath -c 20 -gid 0 -m eval -e eval.pth -tag GallatExt2
+#python Trainer.py -dr $datapath -c 20 -gid 0 -m trainNeval -net GallatExtFull -tag RefGaaRNConcat
+#python Trainer.py -dr $datapath -c 20 -gid 0 -m train -net GallatExtFull -tag RefGaaRNConcat
+#python Trainer.py -dr $datapath -c 20 -gid 0 -m eval -e eval.pth -tag RefGaaRNConcat
 
 ### GallatExt-3 (Leverage tuning) ###
-#python Trainer.py -dr $datapath -c 20 -gid 0 -m trainNeval -net GallatExt -re 0.2 -tag GallatExt3
-#python Trainer.py -dr $datapath -c 20 -gid 0 -m train -net GallatExt -re 0.2 -tag GallatExt3
-#python Trainer.py -dr $datapath -c 20 -gid 0 -m eval -e eval.pth -re 0.2 -tag GallatExt3
+#python Trainer.py -dr $datapath -c 20 -gid 0 -m trainNeval -net GallatExt -re 0.2 -tag RefGaaRNWSum
+#python Trainer.py -dr $datapath -c 20 -gid 0 -m train -net GallatExt -re 0.2 -tag RefGaaRNWSum
+#python Trainer.py -dr $datapath -c 20 -gid 0 -m eval -e eval.pth -re 0.2 -tag RefGaaRNWSum
 
 ### GallatExt-4 (Unified graph) ###
 #python Trainer.py -dr $datapath -c 20 -gid 0 -m trainNeval -net GallatExt -u 1 -tag GallatExt4
@@ -80,9 +80,9 @@ python Trainer.py -dr $datapath -c 20 -gid 0 -m trainNeval -net GallatExt -tag R
 #python Trainer.py -dr $datapath -c 20 -gid 0 -m eval -e eval.pth -u 1 -tag GallatExt4
 
 ### GallatExt-5 (Shifting scheme) ###
-#python Trainer.py -dr $datapath -c 20 -gid 1 -m trainNeval -net GallatExt -re -2 -tag GallatExt5
-#python Trainer.py -dr $datapath -c 20 -gid 1 -m train -net GallatExt -re -2 -tag GallatExt5
-#python Trainer.py -dr $datapath -c 20 -gid 0 -m eval -e model_save/20211201_18_08_18.pth -re -2 -tag GallatExt5
+#python Trainer.py -dr $datapath -c 20 -gid 1 -m trainNeval -net GallatExt -re -2 -tag RefGaaRNShift
+#python Trainer.py -dr $datapath -c 20 -gid 1 -m train -net GallatExt -re -2 -tag RefGaaRNShift
+#python Trainer.py -dr $datapath -c 20 -gid 0 -m eval -e model_save/20211201_18_08_18.pth -re -2 -tag RefGaaRNShift
 
 ### GallatExt-6 (Tuning with AR) ###
 #python Trainer.py -dr $datapath -c 20 -gid 0 -m trainNeval -net GallatExt -rar refAR.pth -tag GallatExt6

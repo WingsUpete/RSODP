@@ -65,7 +65,6 @@ def trainLog2LossCurve(logfn=LOG_FN_DEFAULT, outdir=OUT_DIR_DEFAULT):
     print('All analysis tasks finished.')
 
 
-# Test
 if __name__ == '__main__':
     """ 
         Usage Example:

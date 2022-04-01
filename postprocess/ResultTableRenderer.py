@@ -1,4 +1,6 @@
 import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))   # Enables Config to be loaded
 import argparse
 from Config import METRICS_FOR_WHAT, METRICS_NAME, EVAL_METRICS_THRESHOLD_SET, OUR_MODEL, MODELS_TO_EXAMINE
 
@@ -144,7 +146,7 @@ def renderTable(t_records: dict, ds_tag: str):
 if __name__ == '__main__':
     """ 
         Usage Example:
-        python ResultTableRenderer.py -i ./dc_dataset/ -d dc2017_0101to0331
+        python ResultTableRenderer.py -i ./dc_dataset/ -d "Washington D.C. (2017) 0101-0331"
     """
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--in_dir', type=str, default=LOG_IN_DIR_DEFAULT, help='The directory for the input logs, default = {}'.format(LOG_IN_DIR_DEFAULT))

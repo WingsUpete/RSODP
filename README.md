@@ -18,8 +18,6 @@ Given a request sequence <img src="https://render.githubusercontent.com/render/m
 ## III. Data
 
 -   [New York Yellow Taxi Trip Data (2016)](https://www.kaggle.com/vishnurapps/newyork-taxi-demand)
-
--   [Peru Uber Dataset (2010)](https://www.kaggle.com/marcusrb/uber-peru-dataset)
 -   [Washington DC Taxi Trips (2017)](https://www.kaggle.com/bvc5283/dc-taxi-trips)
 
 The data has been preprocessed to keep only the information we need. The format of data file is as follow:
@@ -34,53 +32,57 @@ The data has been preprocessed to keep only the information we need. The format 
 
 ## IV. Model
 
-Our model is named as **GallatExt** since it is an extension version of [Gallat](https://arxiv.org/pdf/2101.00752.pdf). Other models for comparison are listed below.
+Our model is named as **RefGaaRN** (in the code it is *GallatExt* since it is an extension version of [Gallat](https://arxiv.org/pdf/2101.00752.pdf)). Other model structures for comparison are listed below.
 
 ### Baseline
 
 #### <img src="https://render.githubusercontent.com/render/math?math=HA^{%2b}"> (Historical Average)
 
-Historical Average is the very baseline method which computes the average of the historical demands from the previous time slots. For improvement, we further consider the four temporal aspects in our Temporal Attention Layer design while calculate the average of all these values directly.
+Historical Average is the very baseline method which computes the average of the historical demands from the previous time slots. Three versions of HA are tested using different temporal features settings, with <img src="https://render.githubusercontent.com/render/math?math=HA^{%2b}"> using all four (tendency, periodicity and two miscellaneous), HAt using only tendency and HAp using only periodicity.
 
 #### AR (Auto-Regressive)
 
-xxx
+AR (Auto-regressive) model. Here we uses a simple feed-forward network which calculates a weighted sum of the historical data.
 
 <br>
 
 ### Other Models
 
-#### Gallat
-
-Our model is extended from [Gallat](https://arxiv.org/pdf/2101.00752.pdf) (Graph prediction with all attention), so it is considered as an important baseline model for comparison.
-
 #### LSTNet
 
-xxx
+uses a short-term convolution and a GRU to aggregate temporal features, along with an attention block to leverage the historical records along tendency.
 
 #### GCRN
 
-xxx
+uses graph convolution to extract spatial features and LSTM to extract temporal features along tendency.
 
 #### GEML
 
-xxx
+uses pre-weighted GAT to extract spatial features and periodic-skip LSTM to extract temporal features along periodicity.
+
+#### Gallat
+
+uses pre-weighted GAT to extract spatial features and Scaled Dot-Product Attention to extract temporal features along both tendency and periodicity. 
 
 <br>
 
 ### Variant
 
-#### GallatExt-1
+#### RefGaaRN-NoTune
 
-This version inherits the design of the transferring layer in Gallat, meaning there is no tuning blocks with referenced HA results.
+inherits the design of the transferring layer in Gallat, meaning there is no tuning with references.
 
-#### GallatExt-2
+#### RefGaaRN-Concat
 
-This version uses concatenation as the aggregation scheme in both spatial and temporal layer (Default aggregation scheme for GallatExt is average).
+uses concatenation as the aggregation scheme in both spatial and temporal layer.
 
-#### GallatExt-3
+#### RefGaaRN-WSum
 
-xxx
+uses another tuning approach - weighted sum which adds the results from the attention layers and those from the baseline algorithm together with scaling weights specified.
+
+#### RefGaaRN-Shift
+
+uses another tuning approach - shifting (sum) which adds the results from the attention layers and those from the baseline algorithm together.
 
 <br>
 
@@ -98,3 +100,8 @@ For most papers focusing on this area, there are three classic metrics for evalu
 
 In these formulas, <img src="https://render.githubusercontent.com/render/math?math=z"> represents the number of samples. <img src="https://render.githubusercontent.com/render/math?math=y_i"> and <img src="https://render.githubusercontent.com/render/math?math=\hat{y}_i"> represent the ground truth value and the predicted value respectively. <img src="https://render.githubusercontent.com/render/math?math=\epsilon"> is a small additive constant value to avoid the denominator to being zero.
 
+<style>
+    body {
+        text-align: justify;
+    }
+</style>

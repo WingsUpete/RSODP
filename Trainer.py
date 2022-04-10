@@ -152,6 +152,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
     logr.log('eval_freq = {}, batch_size = {}, optimizer = {}\n'.format(eval_freq, bs, opt))
     if model in Config.NETWORKS_TUNABLE:
         logr.log('tune = %s%s\n' % (str(tune), ", use_AR=%s, ref_extent = %.2f" % (net.ref_AR, ref_ext.item()) if tune else ""))
+    if model in Config.MULTI_HEAD_ATT_APPLICABLE:
+        logr.log('num_heads = %d\n' % Config.NUM_HEADS_DEFAULT)
 
     # Start Training
     logr.log('\nStart Training!\n')
@@ -320,6 +322,8 @@ def evaluate(model_name, bs=Config.BATCH_SIZE_DEFAULT, num_workers=Config.WORKER
     # Log Info
     if net.__class__.__name__ in Config.NETWORKS_TUNABLE:
         logr.log('tune = %s%s\n' % (str(tune), ", ref_extent = %.2f" % ref_ext.item() if tune else ""))
+    if net.__class__.__name__ in Config.MULTI_HEAD_ATT_APPLICABLE:
+        logr.log('num_heads = %d\n' % net.num_heads)
 
     net.eval()
     # 1.

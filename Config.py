@@ -22,6 +22,7 @@ NETWORK_DEFAULT = 'GallatExt'
 TAG_DEFAULT = None
 NETWORKS = ['Gallat', 'GallatExt', 'GallatExtFull', 'AR', 'LSTNet', 'GCRN', 'GEML']
 NETWORKS_TUNABLE = ['Gallat', 'GallatExt', 'GallatExtFull']
+MULTI_HEAD_ATT_APPLICABLE = ['Gallat', 'GallatExt', 'GallatExtFull', 'GCRN', 'GEML']
 REF_AR_DEFAULT = 'None'  # should be an AR model file name
 MODE_DEFAULT = 'trainNeval'
 EVAL_DEFAULT = 'eval.pth'   # should be a model file name

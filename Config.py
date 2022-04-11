@@ -75,10 +75,12 @@ METRICS_FOR_WHAT = ['Demand', 'OD']
 OUR_MODEL = 'RefGaaRN'
 
 MODELS_TO_EXAMINE = [
-    ['HAplus', 'HAt', 'HAp', 'AR'],                                         # baseline
-    ['LSTNet', 'GCRN', 'GEML', 'Gallat'],                                   # others
-    [OUR_MODEL],                                                            # ours
-    ['RefGaaRNNoTune', 'RefGaaRNConcat', 'RefGaaRNWSum', 'RefGaaRNShift']   # variants
+    ['HAplus', 'HAt', 'HAp', 'AR'],             # baseline
+    ['LSTNet', 'GCRN', 'GEML', 'Gallat'],       # others
+    [OUR_MODEL],                                # ours
+    ['RefGaaRNNoTune', 'RefGaaRNConcat',        # variants
+     'RefGaaRNWSum', 'RefGaaRNShift',
+     'RefGaaRNARTune']
 ]
 
 GALLAT_FINAL_ACTIVATION_USE_SIGMOID = True

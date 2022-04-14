@@ -154,6 +154,8 @@ def train(lr=Config.LEARNING_RATE_DEFAULT, bs=Config.BATCH_SIZE_DEFAULT, ep=Conf
         logr.log('tune = %s%s\n' % (str(tune), ", use_AR=%s, ref_extent = %.2f" % (net.ref_AR, ref_ext.item()) if tune else ""))
     if model in Config.MULTI_HEAD_ATT_APPLICABLE:
         logr.log('num_heads = %d\n' % Config.NUM_HEADS_DEFAULT)
+    if predict_G:
+        logr.log('Demand task ~ %.2f%%, OD task ~ %.2f%%\n' % (Config.D_PERCENTAGE_DEFAULT * 100, Config.G_PERCENTAGE_DEFAULT * 100))
 
     # Start Training
     logr.log('\nStart Training!\n')

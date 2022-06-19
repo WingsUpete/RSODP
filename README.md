@@ -3,7 +3,7 @@ Origin-Destination Prediction for Ridesharing
 
 <br>
 
-## I. Introduction
+<!-- ## I. Introduction
 
 This repository is created for an undergraduate final project which studies the prediction models for Ridesharing use cases. Ridesharing is a blooming service in which passengers share their rides for a variety of purposes (fewer route costs for vehicles, better experiences for passengers, etc). In recent years, researchers have focused largely on traffic forecasting and predictions in order to benefit transportation planning as well as environmental protection. In the case of ridesharing, the most popular topic is Origin-Destination (OD) prediction which intends to predict future passenger demands for better vehicle assignment. In this repository, we will research on the latest designs of OD prediction model for ridesharing system and try to learn the common practice among all for extension. We further extend [Gallat](https://arxiv.org/pdf/2101.00752.pdf) as GallatExt for better performance on solving RSODP.
 
@@ -98,7 +98,7 @@ For most papers focusing on this area, there are three classic metrics for evalu
 
 <p align="center"><img src="https://render.githubusercontent.com/render/math?math=MAE(y, \hat{y}) = \frac{1}{z}\sum_{i=1}^{z}|y - \hat{y}|"></p>
 
-In these formulas, <img src="https://render.githubusercontent.com/render/math?math=z"> represents the number of samples. <img src="https://render.githubusercontent.com/render/math?math=y_i"> and <img src="https://render.githubusercontent.com/render/math?math=\hat{y}_i"> represent the ground truth value and the predicted value respectively. <img src="https://render.githubusercontent.com/render/math?math=\epsilon"> is a small additive constant value to avoid the denominator to being zero.
+In these formulas, <img src="https://render.githubusercontent.com/render/math?math=z"> represents the number of samples. <img src="https://render.githubusercontent.com/render/math?math=y_i"> and <img src="https://render.githubusercontent.com/render/math?math=\hat{y}_i"> represent the ground truth value and the predicted value respectively. <img src="https://render.githubusercontent.com/render/math?math=\epsilon"> is a small additive constant value to avoid the denominator to being zero. -->
 
 <!-- <style>
     body {
